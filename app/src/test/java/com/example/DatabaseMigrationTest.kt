@@ -125,5 +125,17 @@ class DatabaseMigrationTest {
             assertEquals("PENDING", it.getString(2)) // visualEmbeddingStatus
             assertEquals("Test_Screenshot.png", it.getString(3)) // displayName preserved intact
         }
+
+        // 5. Execute MIGRATION_4_5
+        RecallDatabase.MIGRATION_4_5.migrate(db)
+
+        // Verify v5 columns (retryCount and lastAttemptAt)
+        cursor = db.query("SELECT retryCount, lastAttemptAt, displayName FROM screenshots WHERE mediaStoreId = 101")
+        cursor.use {
+            assertTrue("Row must exist after migration 4->5", it.moveToFirst())
+            assertEquals(0, it.getInt(0)) // retryCount default 0
+            assertEquals(0L, it.getLong(1)) // lastAttemptAt default 0
+            assertEquals("Test_Screenshot.png", it.getString(2)) // displayName preserved intact
+        }
     }
 }

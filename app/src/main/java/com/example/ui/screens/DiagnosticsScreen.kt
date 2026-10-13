@@ -41,6 +41,7 @@ fun DiagnosticsScreen(
     benchmarkReport: String?,
     isBenchmarking: Boolean,
     onRunBenchmark: () -> Unit,
+    onRetryFailed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -161,6 +162,21 @@ fun DiagnosticsScreen(
                 DiagnosticRow("Awaiting Indexing", "${stats.totalPending}")
                 DiagnosticRow("Processing Failures", "${stats.totalFailed}")
                 DiagnosticRow("Indexing Worker Active", if (stats.isIndexingActive) "Running" else "Idle")
+
+                if (stats.totalFailed > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = onRetryFailed,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("diagnostics_retry_failed_button")
+                    ) {
+                        Icon(imageVector = Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Retry Quarantined Images (${stats.totalFailed})")
+                    }
+                }
             }
         }
 

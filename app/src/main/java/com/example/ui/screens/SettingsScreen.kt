@@ -50,6 +50,7 @@ fun SettingsScreen(
     onSeedSamples: () -> Unit,
     onRebuildIndex: () -> Unit,
     onClearIndex: () -> Unit,
+    onRetryFailed: () -> Unit = {},
     onImportImages: () -> Unit = {},
     scopeScreenshotsOnly: Boolean = false,
     onToggleScopeScreenshotsOnly: (Boolean) -> Unit = {},
@@ -224,6 +225,18 @@ fun SettingsScreen(
                     Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Rebuild Vector Index")
+                }
+
+                OutlinedButton(
+                    onClick = onRetryFailed,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("settings_retry_failed_button")
+                ) {
+                    Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Retry Failed / Quarantined Images")
                 }
 
                 Button(

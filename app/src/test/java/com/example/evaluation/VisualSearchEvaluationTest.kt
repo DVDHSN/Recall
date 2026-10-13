@@ -81,7 +81,7 @@ class VisualSearchEvaluationTest {
         override suspend fun deleteById(id: Long) {}
         override suspend fun clearAll() {}
         override suspend fun resetAllForReindexing() {}
-        override suspend fun retryFailed() {}
+        override suspend fun retryFailed(): Int = 0
         override suspend fun resetInterruptedProcessing(): Int = 0
         override suspend fun getAwaitingVisualEmbedding(limit: Int): List<ScreenshotEntity> = emptyList()
         override suspend fun updateVisualEmbedding(id: Long, visualBlob: FloatArray?, visualModelVersion: String, visualDimension: Int, status: String) {}

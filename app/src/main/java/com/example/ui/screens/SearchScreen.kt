@@ -45,11 +45,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.AutoAwesome
 import com.example.core.model.IndexStats
 import com.example.core.model.ScreenshotItem
 import com.example.core.model.SearchResult
+import com.example.core.qa.model.AskRecallUiState
 import com.example.core.search.query.ParsedQuery
 import com.example.core.search.query.SearchMode
+import com.example.ui.components.AskRecallSection
 import com.example.ui.components.IndexingProgressBanner
 import com.example.ui.components.SearchResultCard
 
@@ -66,6 +69,14 @@ fun SearchScreen(
     onRemoveInferredFilter: (String) -> Unit,
     onToggleIndexing: () -> Unit,
     onSelectScreenshot: (ScreenshotItem) -> Unit,
+    isAskMode: Boolean = false,
+    askQuery: String = "",
+    askUiState: AskRecallUiState = AskRecallUiState.Idle,
+    allScreenshots: List<ScreenshotItem> = emptyList(),
+    onToggleAskMode: (Boolean) -> Unit = {},
+    onAskQueryChange: (String) -> Unit = {},
+    onSubmitAskQuestion: (String) -> Unit = {},
+    onClearAskState: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sampleQueries = listOf(
@@ -133,8 +144,60 @@ fun SearchScreen(
             }
         }
 
-        // Search Input Bar
-        OutlinedTextField(
+        // Search vs Ask Recall Mode Switcher
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = !isAskMode,
+                onClick = { onToggleAskMode(false) },
+                label = { Text("Search Matches") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                },
+                modifier = Modifier.testTag("mode_chip_search")
+            )
+
+            FilterChip(
+                selected = isAskMode,
+                onClick = { onToggleAskMode(true) },
+                label = { Text("Ask Recall (AI)") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                },
+                modifier = Modifier.testTag("mode_chip_ask")
+            )
+        }
+
+        if (isAskMode) {
+            IndexingProgressBanner(
+                stats = stats,
+                onToggleIndexing = onToggleIndexing
+            )
+
+            AskRecallSection(
+                query = askQuery,
+                uiState = askUiState,
+                allScreenshots = allScreenshots,
+                onQueryChange = onAskQueryChange,
+                onSubmitQuestion = onSubmitAskQuestion,
+                onClear = onClearAskState,
+                onSelectScreenshot = onSelectScreenshot
+            )
+        } else {
+            // Search Input Bar
+            OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
             modifier = Modifier
@@ -327,6 +390,7 @@ fun SearchScreen(
                     )
                 }
             }
+        }
         }
     }
 }

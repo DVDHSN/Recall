@@ -69,7 +69,7 @@ class SearchEngineEvaluationTest {
         override suspend fun deleteById(id: Long) {}
         override suspend fun clearAll() {}
         override suspend fun resetAllForReindexing() {}
-        override suspend fun retryFailed() {}
+        override suspend fun retryFailed(): Int = 0
         override suspend fun resetInterruptedProcessing(): Int = 0
         override suspend fun getAwaitingVisualEmbedding(limit: Int): List<ScreenshotEntity> = emptyList()
         override suspend fun updateVisualEmbedding(id: Long, visualBlob: FloatArray?, visualModelVersion: String, visualDimension: Int, status: String) {}
@@ -78,6 +78,70 @@ class SearchEngineEvaluationTest {
         override suspend fun getAllSearchable(): List<ScreenshotEntity> = corpus
         override fun getByImageSourceFlow(imageSource: String): Flow<List<ScreenshotEntity>> = flowOf(corpus.filter { it.imageSource == imageSource })
         override suspend fun deleteAllMediaStoreItems(): Int = 0
+    }
+
+    data class SegmentMetrics(
+        val name: String,
+        val queryCount: Int,
+        val recallAt5: Double,
+        val precisionAt5: Double,
+        val ndcgAt5: Double,
+        val mrr: Double
+    )
+
+    private suspend fun evaluateQuerySubset(
+        name: String,
+        subset: List<EvalQuery>,
+        searchEngine: SemanticSearchEngine
+    ): SegmentMetrics {
+        var hitsAt5 = 0
+        var totalPrecisionAt5 = 0.0
+        var totalNdcgAt5 = 0.0
+        var totalReciprocalRank = 0.0
+
+        for (q in subset) {
+            val results = searchEngine.search(q.queryText)
+            val top5 = results.take(5)
+            val top5Ids = top5.map { it.screenshot.id }.toSet()
+
+            // Recall@5
+            val hasHitAt5 = q.expectedDocIds.any { top5Ids.contains(it) }
+            if (hasHitAt5) hitsAt5++
+
+            // Precision@5
+            val relevantInTop5 = top5.count { q.expectedDocIds.contains(it.screenshot.id) }
+            totalPrecisionAt5 += relevantInTop5.toDouble() / 5.0
+
+            // nDCG@5
+            var dcg = 0.0
+            for (i in top5.indices) {
+                val rel = if (q.expectedDocIds.contains(top5[i].screenshot.id)) 1.0 else 0.0
+                dcg += rel / (ln((i + 2).toDouble()) / ln(2.0))
+            }
+            var idcg = 0.0
+            val idealCount = kotlin.math.min(5, q.expectedDocIds.size)
+            for (i in 0 until idealCount) {
+                idcg += 1.0 / (ln((i + 2).toDouble()) / ln(2.0))
+            }
+            val ndcg = if (idcg > 0.0) dcg / idcg else 1.0
+            totalNdcgAt5 += ndcg
+
+            // MRR
+            val firstRank = results.indexOfFirst { q.expectedDocIds.contains(it.screenshot.id) }
+            if (firstRank >= 0) {
+                totalReciprocalRank += 1.0 / (firstRank + 1)
+            }
+        }
+
+        val n = subset.size.coerceAtLeast(1)
+        return SegmentMetrics(
+            name = name,
+            queryCount = subset.size,
+            recallAt5 = hitsAt5.toDouble() / n,
+            precisionAt5 = totalPrecisionAt5 / n,
+            ndcgAt5 = totalNdcgAt5 / n,
+            mrr = totalReciprocalRank / n
+        )
     }
 
     @Test
@@ -96,57 +160,61 @@ class SearchEngineEvaluationTest {
             candidateFusion = CandidateFusion()
         )
 
-        val queries = EvaluationDataset.queries
-        var hitsAt5 = 0
-        var hitsAt10 = 0
-        var totalReciprocalRank = 0.0
-        var identifierHits = 0
-        var totalIdentifiers = 0
+        val allQueries = EvaluationDataset.queries
 
-        for (q in queries) {
-            val results = searchEngine.search(q.queryText)
-            val top5Ids = results.take(5).map { it.screenshot.id }.toSet()
-            val top10Ids = results.take(10).map { it.screenshot.id }.toSet()
-
-            // Check Recall@5
-            val hasHitAt5 = q.expectedDocIds.any { top5Ids.contains(it) }
-            if (hasHitAt5) hitsAt5++
-
-            // Check Recall@10
-            val hasHitAt10 = q.expectedDocIds.any { top10Ids.contains(it) }
-            if (hasHitAt10) hitsAt10++
-
-            // Compute MRR
-            val firstHitRank = results.indexOfFirst { q.expectedDocIds.contains(it.screenshot.id) }
-            if (firstHitRank >= 0) {
-                totalReciprocalRank += 1.0 / (firstHitRank + 1)
-            }
-
-            // Check technical identifier accuracy
-            if (q.isExactImportant) {
-                totalIdentifiers++
-                if (results.isNotEmpty() && q.expectedDocIds.contains(results[0].screenshot.id)) {
-                    identifierHits++
-                }
-            }
+        // 1. Segment: Text-Heavy / OCR Queries
+        val textQueries = allQueries.filter {
+            it.category in listOf("Code", "Network", "Identifier", "Finance")
         }
 
-        val recallAt5 = hitsAt5.toDouble() / queries.size
-        val recallAt10 = hitsAt10.toDouble() / queries.size
-        val mrr = totalReciprocalRank / queries.size
-        val identifierAccuracy = if (totalIdentifiers > 0) identifierHits.toDouble() / totalIdentifiers else 1.0
+        // 2. Segment: Hybrid / Semantic Queries
+        val hybridQueries = allQueries.filter {
+            it.category in listOf("Recipe", "Shopping", "Notes", "Date", "Negative")
+        }
+
+        val textMetrics = evaluateQuerySubset("Text-Heavy / OCR Queries", textQueries, searchEngine)
+        val hybridMetrics = evaluateQuerySubset("Hybrid / Semantic Queries", hybridQueries, searchEngine)
+        val overallMetrics = evaluateQuerySubset("Overall Full Benchmark", allQueries, searchEngine)
+
+        // Exact technical identifier evaluation
+        val identifierQueries = allQueries.filter { it.isExactImportant }
+        var identifierHits = 0
+        for (q in identifierQueries) {
+            val results = searchEngine.search(q.queryText)
+            if (results.isNotEmpty() && q.expectedDocIds.contains(results[0].screenshot.id)) {
+                identifierHits++
+            }
+        }
+        val identifierAccuracy = if (identifierQueries.isNotEmpty()) {
+            identifierHits.toDouble() / identifierQueries.size
+        } else 1.0
 
         println("=== RECALL 2.0 EVALUATION REPORT (65 QUERIES) ===")
-        println("• Total Queries Evaluated: ${queries.size}")
-        println("• Recall@5: ${(recallAt5 * 100).toInt()}% ($hitsAt5 / ${queries.size})")
-        println("• Recall@10: ${(recallAt10 * 100).toInt()}% ($hitsAt10 / ${queries.size})")
-        println("• Mean Reciprocal Rank (MRR): ${String.format("%.3f", mrr)}")
-        println("• Exact Identifier Accuracy: ${(identifierAccuracy * 100).toInt()}% ($identifierHits / $totalIdentifiers)")
+        println("• Segment 1 [${textMetrics.name}] (N=${textMetrics.queryCount}):")
+        println("   - Recall@5:    ${String.format("%.1f%%", textMetrics.recallAt5 * 100)}")
+        println("   - Precision@5: ${String.format("%.1f%%", textMetrics.precisionAt5 * 100)}")
+        println("   - nDCG@5:      ${String.format("%.3f", textMetrics.ndcgAt5)}")
+        println("   - MRR:         ${String.format("%.3f", textMetrics.mrr)}")
+
+        println("• Segment 2 [${hybridMetrics.name}] (N=${hybridMetrics.queryCount}):")
+        println("   - Recall@5:    ${String.format("%.1f%%", hybridMetrics.recallAt5 * 100)}")
+        println("   - Precision@5: ${String.format("%.1f%%", hybridMetrics.precisionAt5 * 100)}")
+        println("   - nDCG@5:      ${String.format("%.3f", hybridMetrics.ndcgAt5)}")
+        println("   - MRR:         ${String.format("%.3f", hybridMetrics.mrr)}")
+
+        println("• Overall [${overallMetrics.name}] (N=${overallMetrics.queryCount}):")
+        println("   - Recall@5:    ${String.format("%.1f%%", overallMetrics.recallAt5 * 100)}")
+        println("   - Precision@5: ${String.format("%.1f%%", overallMetrics.precisionAt5 * 100)}")
+        println("   - nDCG@5:      ${String.format("%.3f", overallMetrics.ndcgAt5)}")
+        println("   - MRR:         ${String.format("%.3f", overallMetrics.mrr)}")
+        println("• Technical Identifier Top-1 Accuracy: ${String.format("%.1f%%", identifierAccuracy * 100)} ($identifierHits / ${identifierQueries.size})")
 
         // Assert benchmark acceptance criteria
-        assertTrue("Recall@5 must be >= 90%", recallAt5 >= 0.90)
-        assertTrue("Recall@10 must be >= 95%", recallAt10 >= 0.95)
-        assertTrue("MRR must be >= 0.80", mrr >= 0.80)
+        assertTrue("Overall Recall@5 must be >= 90%", overallMetrics.recallAt5 >= 0.90)
+        assertTrue("Text Recall@5 must be >= 90%", textMetrics.recallAt5 >= 0.90)
+        assertTrue("Hybrid Recall@5 must be >= 90%", hybridMetrics.recallAt5 >= 0.90)
+        assertTrue("Overall nDCG@5 must be >= 0.85", overallMetrics.ndcgAt5 >= 0.85)
+        assertTrue("Overall MRR must be >= 0.80", overallMetrics.mrr >= 0.80)
         assertTrue("Exact identifier accuracy must be >= 90%", identifierAccuracy >= 0.90)
     }
 }

@@ -25,11 +25,13 @@ class ScreenshotIndexer(
 
     suspend fun indexScreenshot(entity: ScreenshotEntity): Boolean = withContext(Dispatchers.IO) {
         val id = entity.id
+        val newRetryCount = entity.retryCount + 1
+        val now = System.currentTimeMillis()
         screenshotDao.updateStatus(id, IndexingStatus.PROCESSING)
 
         val bitmap = discovery.loadDownscaledBitmap(entity.contentUri, maxDimension = 1920)
         if (bitmap == null) {
-            Log.w(TAG, "Failed to decode bitmap for image $id (${entity.displayName})")
+            Log.w(TAG, "Failed to decode bitmap for image $id (${entity.displayName}) attempt $newRetryCount")
             val isAccessible = discovery.isUriAccessible(entity.contentUri)
             if (!isAccessible && entity.relativePath != "Imported") {
                 Log.i(TAG, "Image $id (${entity.displayName}) URI is no longer accessible; deleting from database.")
@@ -37,16 +39,19 @@ class ScreenshotIndexer(
                 return@withContext false
             }
 
+            val nextStatus = if (newRetryCount >= 3) IndexingStatus.FAILED else IndexingStatus.NEEDS_REINDEX
             val failedEntity = entity.copy(
-                indexingStatus = IndexingStatus.FAILED,
-                ocrError = if (!isAccessible) "Inaccessible or permission revoked" else "Failed to open or decode image"
+                indexingStatus = nextStatus,
+                retryCount = newRetryCount,
+                lastAttemptAt = now,
+                ocrError = if (!isAccessible) "Inaccessible or permission revoked" else "Failed to open or decode image (Attempt $newRetryCount/3)"
             )
             screenshotDao.update(failedEntity)
             return@withContext false
         }
 
         try {
-            // 1. Compute Visual Hashes & Cross-Modal Visual Embedding before bitmap recycling
+            // 1. Compute Visual Hashes & Cross-Modal Visual Embedding
             val contentHash = PerceptualHasher.computeContentHash(bitmap)
             val perceptualHash = PerceptualHasher.computeDHash(bitmap)
 
@@ -65,20 +70,21 @@ class ScreenshotIndexer(
 
             // 2. Run OCR
             val ocrResult = ocrEngine.recognizeText(bitmap)
-            // Recycle bitmap immediately to release RAM on mid-range hardware
-            bitmap.recycle()
 
             if (!ocrResult.isSuccess) {
-                Log.w(TAG, "OCR failed for image $id: ${ocrResult.error}")
+                Log.w(TAG, "OCR failed for image $id (attempt $newRetryCount): ${ocrResult.error}")
+                val nextStatus = if (newRetryCount >= 3) IndexingStatus.FAILED else IndexingStatus.NEEDS_REINDEX
                 val failedEntity = entity.copy(
-                    indexingStatus = IndexingStatus.FAILED,
+                    indexingStatus = nextStatus,
+                    retryCount = newRetryCount,
+                    lastAttemptAt = now,
                     contentHash = contentHash,
                     perceptualHash = perceptualHash,
                     visualBlob = visualVector,
                     visualModelVersion = visualModel,
                     visualDimension = visualDims,
                     visualEmbeddingStatus = "READY",
-                    ocrError = ocrResult.error
+                    ocrError = "${ocrResult.error} (Attempt $newRetryCount/3)"
                 )
                 screenshotDao.update(failedEntity)
                 return@withContext false
@@ -108,7 +114,9 @@ class ScreenshotIndexer(
                 val emptyEntity = entity.copy(
                     ocrText = "",
                     indexingStatus = IndexingStatus.EMPTY_TEXT,
-                    lastIndexedAt = System.currentTimeMillis(),
+                    retryCount = 0,
+                    lastIndexedAt = now,
+                    lastAttemptAt = now,
                     embeddingDimension = 0,
                     embeddingBlob = null,
                     contentHash = contentHash,
@@ -118,7 +126,9 @@ class ScreenshotIndexer(
                     visualDimension = visualDims,
                     visualEmbeddingStatus = "READY",
                     categoryLabels = categoriesStr,
-                    classificationConfidence = classification.confidence
+                    classificationConfidence = classification.confidence,
+                    ocrError = null,
+                    embeddingError = null
                 )
                 screenshotDao.update(emptyEntity)
                 return@withContext true
@@ -131,7 +141,9 @@ class ScreenshotIndexer(
             val indexedEntity = entity.copy(
                 ocrText = extractedText,
                 indexingStatus = IndexingStatus.INDEXED,
-                lastIndexedAt = System.currentTimeMillis(),
+                retryCount = 0,
+                lastIndexedAt = now,
+                lastAttemptAt = now,
                 embeddingModelVersion = embeddingEngine.modelVersion,
                 embeddingDimension = embeddingEngine.embeddingDimension,
                 embeddingBlob = embedding,
@@ -150,13 +162,20 @@ class ScreenshotIndexer(
             Log.d(TAG, "Indexed image $id (${entity.displayName}) - Cat: $categoriesStr, pHash: $perceptualHash, Visual: $visualDims dims")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error indexing image $id", e)
+            Log.e(TAG, "Error indexing image $id attempt $newRetryCount", e)
+            val nextStatus = if (newRetryCount >= 3) IndexingStatus.FAILED else IndexingStatus.NEEDS_REINDEX
             val failedEntity = entity.copy(
-                indexingStatus = IndexingStatus.FAILED,
-                ocrError = e.localizedMessage ?: "Unknown indexing failure"
+                indexingStatus = nextStatus,
+                retryCount = newRetryCount,
+                lastAttemptAt = now,
+                ocrError = "${e.localizedMessage ?: "Unknown failure"} (Attempt $newRetryCount/3)"
             )
             screenshotDao.update(failedEntity)
             false
+        } finally {
+            if (!bitmap.isRecycled) {
+                bitmap.recycle()
+            }
         }
     }
 

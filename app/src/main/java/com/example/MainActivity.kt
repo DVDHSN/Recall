@@ -84,6 +84,9 @@ fun MainAppContainer(viewModel: MainViewModel) {
     val isBenchmarking by viewModel.isBenchmarking.collectAsStateWithLifecycle()
     val scopeScreenshotsOnly by viewModel.scopeScreenshotsOnly.collectAsStateWithLifecycle()
     val mediaPermissionState by viewModel.mediaPermissionState.collectAsStateWithLifecycle()
+    val isAskMode by viewModel.isAskMode.collectAsStateWithLifecycle()
+    val askQuery by viewModel.askQuery.collectAsStateWithLifecycle()
+    val askUiState by viewModel.askUiState.collectAsStateWithLifecycle()
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -190,7 +193,15 @@ fun MainAppContainer(viewModel: MainViewModel) {
                         onSearchModeChange = { viewModel.onSearchModeChange(it) },
                         onRemoveInferredFilter = { viewModel.removeInferredFilter(it) },
                         onToggleIndexing = { viewModel.toggleIndexing() },
-                        onSelectScreenshot = { viewModel.selectScreenshot(it) }
+                        onSelectScreenshot = { viewModel.selectScreenshot(it) },
+                        isAskMode = isAskMode,
+                        askQuery = askQuery,
+                        askUiState = askUiState,
+                        allScreenshots = allScreenshots,
+                        onToggleAskMode = { viewModel.setAskMode(it) },
+                        onAskQueryChange = { viewModel.onAskQueryChange(it) },
+                        onSubmitAskQuestion = { viewModel.submitAskQuestion(it) },
+                        onClearAskState = { viewModel.clearAskState() }
                     )
 
                     NavigationTab.LIBRARY -> LibraryScreen(
@@ -212,7 +223,8 @@ fun MainAppContainer(viewModel: MainViewModel) {
                         stats = indexStats,
                         benchmarkReport = benchmarkReport,
                         isBenchmarking = isBenchmarking,
-                        onRunBenchmark = { viewModel.runDiagnosticsBenchmark() }
+                        onRunBenchmark = { viewModel.runDiagnosticsBenchmark() },
+                        onRetryFailed = { viewModel.retryFailedImages() }
                     )
 
                     NavigationTab.SETTINGS -> SettingsScreen(
@@ -220,6 +232,7 @@ fun MainAppContainer(viewModel: MainViewModel) {
                         onSeedSamples = { viewModel.seedSampleScreenshots() },
                         onRebuildIndex = { viewModel.resetAllForReindexing() },
                         onClearIndex = { viewModel.clearIndex() },
+                        onRetryFailed = { viewModel.retryFailedImages() },
                         onImportImages = {
                             photoPickerLauncher.launch(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)

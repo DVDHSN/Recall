@@ -38,7 +38,7 @@ interface ScreenshotDao {
     @Query("SELECT * FROM screenshots WHERE indexingStatus = :status ORDER BY dateModified DESC LIMIT :limit")
     suspend fun getByStatus(status: IndexingStatus, limit: Int = 100): List<ScreenshotEntity>
 
-    @Query("SELECT * FROM screenshots WHERE indexingStatus IN ('PENDING', 'NEEDS_REINDEX') ORDER BY dateModified DESC LIMIT :limit")
+    @Query("SELECT * FROM screenshots WHERE indexingStatus IN ('PENDING', 'NEEDS_REINDEX') AND retryCount < 3 ORDER BY dateModified DESC LIMIT :limit")
     suspend fun getAwaitingIndexing(limit: Int = 50): List<ScreenshotEntity>
 
     @Query("SELECT * FROM screenshots WHERE visualEmbeddingStatus IN ('PENDING', 'NEEDS_REINDEX') AND indexingStatus != 'FAILED' ORDER BY dateModified DESC LIMIT :limit")
@@ -53,8 +53,8 @@ interface ScreenshotDao {
     @Query("SELECT * FROM screenshots WHERE visualBlob IS NOT NULL")
     suspend fun getAllWithVisualEmbeddings(): List<ScreenshotEntity>
 
-    @Query("UPDATE screenshots SET indexingStatus = 'NEEDS_REINDEX' WHERE indexingStatus = 'FAILED'")
-    suspend fun retryFailed()
+    @Query("UPDATE screenshots SET indexingStatus = 'PENDING', retryCount = 0, ocrError = NULL WHERE indexingStatus = 'FAILED'")
+    suspend fun retryFailed(): Int
 
     @Query("UPDATE screenshots SET indexingStatus = 'PENDING' WHERE indexingStatus = 'PROCESSING'")
     suspend fun resetInterruptedProcessing(): Int

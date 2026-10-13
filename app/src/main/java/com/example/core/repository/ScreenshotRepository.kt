@@ -60,6 +60,11 @@ class ScreenshotRepository(
         screenshotDao = dao,
         visualEngine = visualEngine
     )
+    val askRecallCoordinator = com.example.core.qa.AskRecallCoordinator(
+        context = context,
+        searchEngine = searchEngine,
+        screenshotDao = dao
+    )
     private val generator = SyntheticScreenshotGenerator(context)
 
     private val _mediaPermissionState = MutableStateFlow(discovery.getMediaPermissionState())
@@ -171,6 +176,7 @@ class ScreenshotRepository(
             return@withContext 0
         }
 
+        dao.resetInterruptedProcessing()
         val discovered = discovery.discoverScreenshots(screenshotsOnly = screenshotsOnly)
         val existingIds = dao.getAllMediaStoreIds().toSet()
 
@@ -346,6 +352,13 @@ class ScreenshotRepository(
         searchEngine.findVisuallySimilar(targetId)
     }
 
+    suspend fun askRecall(
+        question: String,
+        onProgressUpdate: ((String) -> Unit)? = null
+    ): com.example.core.qa.model.AskRecallAnswer = withContext(Dispatchers.Default) {
+        askRecallCoordinator.answerQuestion(question, onProgressUpdate)
+    }
+
     suspend fun refreshDuplicateGroups() = withContext(Dispatchers.IO) {
         val items = dao.getAllDuplicateHashInfo()
         val groups = mutableListOf<DuplicateGroup>()
@@ -420,6 +433,14 @@ class ScreenshotRepository(
     suspend fun clearIndex() = withContext(Dispatchers.IO) {
         dao.clearAll()
         _duplicateGroups.value = emptyList()
+    }
+
+    suspend fun retryFailed(): Int = withContext(Dispatchers.IO) {
+        val count = dao.retryFailed()
+        if (count > 0) {
+            startIndexing()
+        }
+        count
     }
 
     suspend fun resetAllForReindexing() = withContext(Dispatchers.IO) {

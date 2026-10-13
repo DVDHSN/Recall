@@ -61,6 +61,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _scopeScreenshotsOnly = MutableStateFlow(false)
     val scopeScreenshotsOnly: StateFlow<Boolean> = _scopeScreenshotsOnly.asStateFlow()
 
+    private val _isAskMode = MutableStateFlow(false)
+    val isAskMode: StateFlow<Boolean> = _isAskMode.asStateFlow()
+
+    private val _askQuery = MutableStateFlow("")
+    val askQuery: StateFlow<String> = _askQuery.asStateFlow()
+
+    private val _askUiState = MutableStateFlow<com.example.core.qa.model.AskRecallUiState>(com.example.core.qa.model.AskRecallUiState.Idle)
+    val askUiState: StateFlow<com.example.core.qa.model.AskRecallUiState> = _askUiState.asStateFlow()
+
+    private var askJob: Job? = null
+
     val mediaPermissionState: StateFlow<com.example.core.model.MediaPermissionState> = repository.mediaPermissionState
 
     val duplicateGroups: StateFlow<List<DuplicateGroup>> = repository.duplicateGroups
@@ -161,6 +172,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCategory.value = category
     }
 
+    fun setAskMode(enabled: Boolean) {
+        _isAskMode.value = enabled
+    }
+
+    fun onAskQueryChange(query: String) {
+        _askQuery.value = query
+    }
+
+    fun submitAskQuestion(question: String = _askQuery.value) {
+        val trimmed = question.trim()
+        if (trimmed.isBlank()) return
+        _askQuery.value = trimmed
+
+        askJob?.cancel()
+        askJob = viewModelScope.launch {
+            _askUiState.value = com.example.core.qa.model.AskRecallUiState.Loading("Searching image library...")
+            try {
+                val answer = repository.askRecall(trimmed) { progressMsg ->
+                    _askUiState.value = com.example.core.qa.model.AskRecallUiState.Loading(progressMsg)
+                }
+
+                _askUiState.value = when (answer.status) {
+                    com.example.core.qa.model.AnswerStatus.NO_MATCHING_IMAGES,
+                    com.example.core.qa.model.AnswerStatus.INSUFFICIENT_EVIDENCE -> {
+                        com.example.core.qa.model.AskRecallUiState.InsufficientEvidence(
+                            question = trimmed,
+                            reason = answer.statusExplanation.ifBlank { "Could not find sufficient evidence in indexed images." },
+                            suggestedQuestions = listOf(
+                                "Find the receipt that shows RM80",
+                                "Which of these receipts has the lowest total?",
+                                "Find the screenshot with error 404"
+                            )
+                        )
+                    }
+                    com.example.core.qa.model.AnswerStatus.ERROR -> {
+                        com.example.core.qa.model.AskRecallUiState.Error(answer.statusExplanation.ifBlank { "An error occurred while answering." })
+                    }
+                    com.example.core.qa.model.AnswerStatus.ANSWERED -> {
+                        com.example.core.qa.model.AskRecallUiState.Success(answer)
+                    }
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _askUiState.value = com.example.core.qa.model.AskRecallUiState.Error(e.message ?: "Failed to generate answer.")
+            }
+        }
+    }
+
+    fun clearAskState() {
+        askJob?.cancel()
+        _askQuery.value = ""
+        _askUiState.value = com.example.core.qa.model.AskRecallUiState.Idle
+    }
+
     fun setScopeScreenshotsOnly(onlyScreenshots: Boolean) {
         _scopeScreenshotsOnly.value = onlyScreenshots
         discoverImages()
@@ -236,6 +301,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.resetAllForReindexing()
             repository.startIndexing()
+        }
+    }
+
+    fun retryFailedImages() {
+        viewModelScope.launch {
+            repository.retryFailed()
         }
     }
 

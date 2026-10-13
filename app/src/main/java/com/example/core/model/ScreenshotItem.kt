@@ -31,7 +31,9 @@ data class ScreenshotItem(
     val imageSource: String = "OTHER",
     val visualModelVersion: String = "",
     val visualDimension: Int = 0,
-    val visualEmbeddingStatus: String = "PENDING"
+    val visualEmbeddingStatus: String = "PENDING",
+    val retryCount: Int = 0,
+    val lastAttemptAt: Long = 0L
 ) {
     val visualVector: FloatArray? get() = visualBlob
     fun getImageSourceEnum(): ImageSource = ImageSource.fromString(imageSource)

@@ -53,7 +53,9 @@ data class ScreenshotEntity(
     val imageSource: String = "OTHER",
     val visualModelVersion: String = "",
     val visualDimension: Int = 0,
-    val visualEmbeddingStatus: String = "PENDING"
+    val visualEmbeddingStatus: String = "PENDING",
+    val retryCount: Int = 0,
+    val lastAttemptAt: Long = 0L
 ) {
     fun toDomain(): ScreenshotItem {
         val categories = categoryLabels.split(",")
@@ -90,7 +92,9 @@ data class ScreenshotEntity(
             imageSource = imageSource,
             visualModelVersion = visualModelVersion,
             visualDimension = visualDimension,
-            visualEmbeddingStatus = visualEmbeddingStatus
+            visualEmbeddingStatus = visualEmbeddingStatus,
+            retryCount = retryCount,
+            lastAttemptAt = lastAttemptAt
         )
     }
 
@@ -175,7 +179,9 @@ data class ScreenshotEntity(
                 imageSource = item.imageSource,
                 visualModelVersion = item.visualModelVersion,
                 visualDimension = item.visualDimension,
-                visualEmbeddingStatus = item.visualEmbeddingStatus
+                visualEmbeddingStatus = item.visualEmbeddingStatus,
+                retryCount = item.retryCount,
+                lastAttemptAt = item.lastAttemptAt
             )
         }
     }

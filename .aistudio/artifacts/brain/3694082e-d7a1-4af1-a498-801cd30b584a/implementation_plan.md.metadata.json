@@ -1,0 +1,6 @@
+{
+  "summary": "Comprehensive implementation plan for Phase 4: Harden Recall — Reliability, Performance, Privacy, and Release Readiness. Covers persistent incremental indexing with exponential backoff for failed images, Room schema migration (v4->v5) for retry tracking, rigorous memory/bitmap safety, repeatable multi-metric search evaluation (Recall@5, Precision@5, nDCG@5 across visual, text, and hybrid queries), and release readiness verification.",
+  "updatedAt": "2026-10-13T17:07:10.525375284Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
