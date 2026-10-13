@@ -1,6 +1,6 @@
 {
   "name": "Recall",
-  "description": "On-device semantic screenshot search using local OCR, embeddings, and vector similarity.",
+  "description": "On-device semantic search for all images, photos, and screenshots using local OCR, embeddings, and vector similarity.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

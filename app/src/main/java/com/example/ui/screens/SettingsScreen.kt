@@ -41,12 +41,18 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+
 @Composable
 fun SettingsScreen(
     onRescanMediaStore: () -> Unit,
     onSeedSamples: () -> Unit,
     onRebuildIndex: () -> Unit,
     onClearIndex: () -> Unit,
+    onImportImages: () -> Unit = {},
+    scopeScreenshotsOnly: Boolean = false,
+    onToggleScopeScreenshotsOnly: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showClearDialog by remember { mutableStateOf(false) }
@@ -110,6 +116,64 @@ fun SettingsScreen(
             }
         }
 
+        // Scan Scope & Sources Card
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Image Discovery Scope",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (scopeScreenshotsOnly) "Screenshots Only" else "All Device Images",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (scopeScreenshotsOnly)
+                                "Only scans dedicated screenshot folders"
+                            else
+                                "Scans camera photos, pictures, downloads, and screenshots",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    Switch(
+                        checked = !scopeScreenshotsOnly,
+                        onCheckedChange = { onToggleScopeScreenshotsOnly(!it) },
+                        modifier = Modifier.testTag("settings_all_images_switch")
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onImportImages,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("settings_import_photos_button")
+                ) {
+                    Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Select & Import Photos from Gallery")
+                }
+            }
+        }
+
         // Library Index Management Card
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -135,7 +199,7 @@ fun SettingsScreen(
                 ) {
                     Icon(imageVector = Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Reconcile & Rescan MediaStore")
+                    Text("Reconcile & Rescan Device Images")
                 }
 
                 OutlinedButton(
@@ -147,7 +211,7 @@ fun SettingsScreen(
                 ) {
                     Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Seed Sample Screenshots (Recipes, Errors, Wi-Fi)")
+                    Text("Seed Sample Images (Recipes, Notes, Wi-Fi)")
                 }
 
                 OutlinedButton(
@@ -195,7 +259,7 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Target Platform: Android 15 (minSdk 35) • Samsung Galaxy A53 5G",
+                    text = "Target Platform: Android 15 (minSdk 35) • Universal Image Search",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -216,7 +280,7 @@ fun SettingsScreen(
             text = {
                 Text(
                     "This clears the OCR text and vector database from Recall. " +
-                            "IMPORTANT: Your original screenshot photos on your device will NOT be deleted."
+                            "IMPORTANT: Your original photos and screenshots on your device will NOT be deleted."
                 )
             },
             confirmButton = {

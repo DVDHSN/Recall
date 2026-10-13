@@ -140,7 +140,7 @@ fun SearchScreen(
                 .padding(horizontal = 16.dp)
                 .testTag("search_input_field"),
             placeholder = {
-                Text("Search by meaning, text, date, error…")
+                Text("Search images by concept, text, photo, recipe…")
             },
             leadingIcon = {
                 Icon(
@@ -376,7 +376,7 @@ fun EmptySearchPrompt(
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                text = "• $totalIndexed indexed screenshots",
+                text = "• $totalIndexed indexed images",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
@@ -403,7 +403,7 @@ fun NoResultsFound(query: String) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "No matching screenshots found",
+            text = "No matching images found",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground

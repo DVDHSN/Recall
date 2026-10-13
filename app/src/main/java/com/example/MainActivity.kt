@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
@@ -82,15 +83,27 @@ fun MainAppContainer(viewModel: MainViewModel) {
     val visuallySimilarResults by viewModel.visuallySimilarResults.collectAsStateWithLifecycle()
     val benchmarkReport by viewModel.benchmarkReport.collectAsStateWithLifecycle()
     val isBenchmarking by viewModel.isBenchmarking.collectAsStateWithLifecycle()
+    val scopeScreenshotsOnly by viewModel.scopeScreenshotsOnly.collectAsStateWithLifecycle()
 
-    // Android 14/15 Permission Handling
-    val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-        arrayOf(
-            Manifest.permission.READ_MEDIA_IMAGES,
-            Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
-        )
-    } else {
-        arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            viewModel.importImages(uris)
+        }
+    }
+
+    // Android 14/15 Permission Handling with Background Notification Support
+    val permissionsToRequest = remember {
+        buildList {
+            add(Manifest.permission.READ_MEDIA_IMAGES)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }.toTypedArray()
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -188,7 +201,12 @@ fun MainAppContainer(viewModel: MainViewModel) {
                         duplicateGroups = duplicateGroups,
                         onSelectScreenshot = { viewModel.selectScreenshot(it) },
                         onRescanMediaStore = { viewModel.discoverScreenshots() },
-                        onSeedSamples = { viewModel.seedSampleScreenshots() }
+                        onSeedSamples = { viewModel.seedSampleScreenshots() },
+                        onImportImages = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
                     )
 
                     NavigationTab.DIAGNOSTICS -> DiagnosticsScreen(
@@ -202,7 +220,14 @@ fun MainAppContainer(viewModel: MainViewModel) {
                         onRescanMediaStore = { viewModel.discoverScreenshots() },
                         onSeedSamples = { viewModel.seedSampleScreenshots() },
                         onRebuildIndex = { viewModel.resetAllForReindexing() },
-                        onClearIndex = { viewModel.clearIndex() }
+                        onClearIndex = { viewModel.clearIndex() },
+                        onImportImages = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        scopeScreenshotsOnly = scopeScreenshotsOnly,
+                        onToggleScopeScreenshotsOnly = { viewModel.setScopeScreenshotsOnly(it) }
                     )
                 }
             }

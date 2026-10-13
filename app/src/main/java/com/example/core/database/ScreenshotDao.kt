@@ -38,8 +38,11 @@ interface ScreenshotDao {
     @Query("SELECT * FROM screenshots WHERE indexingStatus = :status ORDER BY dateModified DESC LIMIT :limit")
     suspend fun getByStatus(status: IndexingStatus, limit: Int = 100): List<ScreenshotEntity>
 
-    @Query("SELECT * FROM screenshots WHERE indexingStatus IN ('PENDING', 'NEEDS_REINDEX', 'FAILED') ORDER BY dateModified DESC LIMIT :limit")
+    @Query("SELECT * FROM screenshots WHERE indexingStatus IN ('PENDING', 'NEEDS_REINDEX') ORDER BY dateModified DESC LIMIT :limit")
     suspend fun getAwaitingIndexing(limit: Int = 50): List<ScreenshotEntity>
+
+    @Query("UPDATE screenshots SET indexingStatus = 'NEEDS_REINDEX' WHERE indexingStatus = 'FAILED'")
+    suspend fun retryFailed()
 
     @Query("SELECT * FROM screenshots WHERE indexingStatus = 'INDEXED' AND embeddingBlob IS NOT NULL")
     suspend fun getAllIndexedWithEmbeddings(): List<ScreenshotEntity>
@@ -86,7 +89,7 @@ interface ScreenshotDao {
     @Query("UPDATE screenshots SET indexingStatus = :status WHERE id = :id")
     suspend fun updateStatus(id: Long, status: IndexingStatus)
 
-    @Query("DELETE FROM screenshots WHERE mediaStoreId NOT IN (:keepMediaStoreIds)")
+    @Query("DELETE FROM screenshots WHERE mediaStoreId NOT IN (:keepMediaStoreIds) AND relativePath != 'Imported'")
     suspend fun deleteMissing(keepMediaStoreIds: List<Long>): Int
 
     @Query("DELETE FROM screenshots WHERE id = :id")

@@ -58,6 +58,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isBenchmarking = MutableStateFlow(false)
     val isBenchmarking: StateFlow<Boolean> = _isBenchmarking.asStateFlow()
 
+    private val _scopeScreenshotsOnly = MutableStateFlow(false)
+    val scopeScreenshotsOnly: StateFlow<Boolean> = _scopeScreenshotsOnly.asStateFlow()
+
     val duplicateGroups: StateFlow<List<DuplicateGroup>> = repository.duplicateGroups
 
     val allScreenshots: StateFlow<List<ScreenshotItem>> = repository.allScreenshotsFlow
@@ -156,9 +159,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCategory.value = category
     }
 
-    fun discoverScreenshots() {
+    fun setScopeScreenshotsOnly(onlyScreenshots: Boolean) {
+        _scopeScreenshotsOnly.value = onlyScreenshots
+        discoverImages()
+    }
+
+    fun discoverImages() {
         viewModelScope.launch {
-            repository.discoverAndReconcile()
+            repository.discoverAndReconcile(screenshotsOnly = _scopeScreenshotsOnly.value)
+        }
+    }
+
+    fun discoverScreenshots() {
+        discoverImages()
+    }
+
+    fun importImages(uris: List<android.net.Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            val count = repository.importImages(uris)
+            if (count > 0) {
+                repository.startIndexing()
+            }
         }
     }
 
@@ -167,9 +189,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (current.isIndexingActive) {
             repository.stopIndexing()
         } else {
-            viewModelScope.launch {
-                repository.indexPendingScreenshots()
-            }
+            repository.startIndexing()
         }
     }
 
@@ -209,14 +229,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun resetAllForReindexing() {
         viewModelScope.launch {
             repository.resetAllForReindexing()
-            repository.indexPendingScreenshots()
+            repository.startIndexing()
         }
     }
 
     fun seedSampleScreenshots() {
         viewModelScope.launch {
             repository.seedSampleScreenshots()
-            repository.indexPendingScreenshots()
+            repository.startIndexing()
         }
     }
 

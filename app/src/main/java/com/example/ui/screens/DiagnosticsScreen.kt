@@ -155,9 +155,9 @@ fun DiagnosticsScreen(
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
-                DiagnosticRow("Total Discovered Screenshots", "${stats.totalDiscovered}")
+                DiagnosticRow("Total Discovered Images", "${stats.totalDiscovered}")
                 DiagnosticRow("Successfully Indexed", "${stats.totalIndexed}")
-                DiagnosticRow("Screenshots with No Text", "${stats.totalEmptyText}")
+                DiagnosticRow("Visual Only (No OCR Text)", "${stats.totalEmptyText}")
                 DiagnosticRow("Awaiting Indexing", "${stats.totalPending}")
                 DiagnosticRow("Processing Failures", "${stats.totalFailed}")
                 DiagnosticRow("Indexing Worker Active", if (stats.isIndexingActive) "Running" else "Idle")

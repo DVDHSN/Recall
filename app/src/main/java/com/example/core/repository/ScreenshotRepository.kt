@@ -22,12 +22,18 @@ import com.example.core.search.SemanticSearchEngine
 import com.example.core.search.query.ParsedQuery
 import com.example.core.search.query.SearchMode
 import com.example.core.visual.PerceptualHasher
+import com.example.core.indexing.IndexingWorker
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 
 class ScreenshotRepository(
@@ -44,6 +50,10 @@ class ScreenshotRepository(
 
     private val _isIndexingActive = MutableStateFlow(false)
     val isIndexingActive = _isIndexingActive.asStateFlow()
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val indexingMutex = Mutex()
+    private var activeIndexingJob: Job? = null
 
     private val _currentProcessingName = MutableStateFlow<String?>(null)
     val currentProcessingName = _currentProcessingName.asStateFlow()
@@ -99,14 +109,14 @@ class ScreenshotRepository(
         )
     }
 
-    suspend fun discoverAndReconcile(): Int = withContext(Dispatchers.IO) {
-        var discovered = discovery.discoverScreenshots()
+    suspend fun discoverAndReconcile(screenshotsOnly: Boolean = false): Int = withContext(Dispatchers.IO) {
+        var discovered = discovery.discoverScreenshots(screenshotsOnly = screenshotsOnly)
 
-        // If no screenshots exist (e.g. fresh emulator), generate realistic samples
+        // If no images exist (e.g. fresh emulator), generate realistic samples
         if (discovered.isEmpty()) {
             val generated = generator.generateSampleScreenshots()
             if (generated > 0) {
-                discovered = discovery.discoverScreenshots()
+                discovered = discovery.discoverScreenshots(screenshotsOnly = screenshotsOnly)
             }
         }
 
@@ -136,7 +146,7 @@ class ScreenshotRepository(
                 dao.insertAll(newEntities)
             }
 
-            // Remove deleted items
+            // Remove deleted items (preserves Imported items with relativePath == 'Imported')
             val currentMediaIds = discovered.map { it.mediaStoreId }
             dao.deleteMissing(currentMediaIds)
         }
@@ -145,35 +155,67 @@ class ScreenshotRepository(
         discovered.size
     }
 
-    suspend fun indexPendingScreenshots(batchLimit: Int = 100): Int = withContext(Dispatchers.IO) {
-        if (_isIndexingActive.value) return@withContext 0
+    suspend fun indexPendingScreenshots(batchLimit: Int = 50): Int = withContext(Dispatchers.IO) {
+        if (!indexingMutex.tryLock()) {
+            Log.d(TAG, "Indexing is already running, skipping overlapping execution")
+            return@withContext 0
+        }
 
         _isIndexingActive.value = true
         var indexedCount = 0
 
         try {
-            val pending = dao.getAwaitingIndexing(batchLimit)
-            for (entity in pending) {
-                if (!_isIndexingActive.value) break // Cooperative pause
-                _currentProcessingName.value = entity.displayName
-                val success = indexer.indexScreenshot(entity)
-                if (success) indexedCount++
-                // Brief pause to prevent thermal saturation
-                kotlinx.coroutines.delay(40)
+            while (_isIndexingActive.value) {
+                val pending = dao.getAwaitingIndexing(batchLimit)
+                if (pending.isEmpty()) break
+
+                for (entity in pending) {
+                    if (!_isIndexingActive.value) break // Cooperative pause
+                    _currentProcessingName.value = entity.displayName
+                    val success = indexer.indexScreenshot(entity)
+                    if (success) indexedCount++
+                    // Brief throttle to maintain device responsiveness
+                    kotlinx.coroutines.delay(20)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error in indexPendingScreenshots", e)
         } finally {
             _currentProcessingName.value = null
             _isIndexingActive.value = false
+            indexingMutex.unlock()
             refreshDuplicateGroups()
         }
         indexedCount
     }
 
+    fun startIndexing() {
+        if (_isIndexingActive.value) return
+        _isIndexingActive.value = true
+
+        // 1. Enqueue background WorkManager so indexing continues when app is minimized or phone is locked
+        try {
+            IndexingWorker.enqueue(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not enqueue background worker: ${e.message}")
+        }
+
+        // 2. Launch persistent application-scope coroutine for immediate live progress
+        activeIndexingJob?.cancel()
+        activeIndexingJob = appScope.launch {
+            indexPendingScreenshots()
+        }
+    }
+
     fun stopIndexing() {
         _isIndexingActive.value = false
         _currentProcessingName.value = null
+        activeIndexingJob?.cancel()
+        try {
+            IndexingWorker.cancel(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not cancel background worker: ${e.message}")
+        }
     }
 
     fun parseQuery(rawQuery: String, overrideMode: SearchMode? = null): ParsedQuery {
@@ -269,6 +311,24 @@ class ScreenshotRepository(
         val count = generator.generateSampleScreenshots()
         discoverAndReconcile()
         count
+    }
+
+    suspend fun importImages(uris: List<android.net.Uri>): Int = withContext(Dispatchers.IO) {
+        val newEntities = mutableListOf<ScreenshotEntity>()
+        for (uri in uris) {
+            val item = discovery.extractItemFromUri(uri)
+            if (item != null) {
+                val existing = dao.getByMediaStoreId(item.mediaStoreId)
+                if (existing == null) {
+                    newEntities.add(ScreenshotEntity.fromDomain(item))
+                }
+            }
+        }
+        if (newEntities.isNotEmpty()) {
+            dao.insertAll(newEntities)
+            refreshDuplicateGroups()
+        }
+        newEntities.size
     }
 
     companion object {

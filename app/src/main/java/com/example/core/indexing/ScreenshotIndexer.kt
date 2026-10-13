@@ -65,8 +65,21 @@ class ScreenshotIndexer(
             val classification = ScreenshotClassifier.classify(extractedText, entity.displayName)
             val categoriesStr = classification.categories.joinToString(",") { it.name }
 
-            if (extractedText.isEmpty()) {
-                // Screenshot contains no readable text, but now has visual embeddings and perceptual hash!
+            val cleanDisplayName = entity.displayName.substringBeforeLast('.')
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .trim()
+
+            val textToEmbed = if (extractedText.isNotEmpty()) {
+                extractedText
+            } else if (cleanDisplayName.length >= 3 && !cleanDisplayName.all { it.isDigit() }) {
+                cleanDisplayName
+            } else {
+                ""
+            }
+
+            if (textToEmbed.isEmpty()) {
+                // Image contains no readable text, but retains visual embeddings and perceptual hash
                 val emptyEntity = entity.copy(
                     ocrText = "",
                     indexingStatus = IndexingStatus.EMPTY_TEXT,
@@ -83,10 +96,10 @@ class ScreenshotIndexer(
                 return@withContext true
             }
 
-            // 4. Generate on-device sentence embedding from extracted text
-            val embedding = embeddingEngine.generateEmbedding(extractedText)
+            // 4. Generate on-device sentence embedding from extracted text or descriptive name
+            val embedding = embeddingEngine.generateEmbedding(textToEmbed)
 
-            // 5. Persist fully indexed screenshot
+            // 5. Persist fully indexed image
             val indexedEntity = entity.copy(
                 ocrText = extractedText,
                 indexingStatus = IndexingStatus.INDEXED,
@@ -103,7 +116,7 @@ class ScreenshotIndexer(
                 embeddingError = null
             )
             screenshotDao.update(indexedEntity)
-            Log.d(TAG, "Indexed screenshot $id (${entity.displayName}) - Cat: $categoriesStr, pHash: $perceptualHash")
+            Log.d(TAG, "Indexed image $id (${entity.displayName}) - Cat: $categoriesStr, pHash: $perceptualHash")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error indexing screenshot $id", e)

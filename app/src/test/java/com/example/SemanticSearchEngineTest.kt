@@ -70,6 +70,7 @@ class SemanticSearchEngineTest {
         override suspend fun deleteById(id: Long) {}
         override suspend fun clearAll() {}
         override suspend fun resetAllForReindexing() {}
+        override suspend fun retryFailed() {}
     }
 
     @Test

@@ -87,7 +87,7 @@ fun IndexingProgressBanner(
                         Spacer(modifier = Modifier.width(10.dp))
 
                         Column {
-                            val title = if (stats.isIndexingActive) "Indexing screenshots…" else "Indexing paused"
+                            val title = if (stats.isIndexingActive) "Indexing images…" else "Indexing paused"
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.labelMedium,

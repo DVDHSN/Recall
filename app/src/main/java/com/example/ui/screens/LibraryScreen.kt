@@ -47,12 +47,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.AutoAwesome
+import com.example.core.media.ScreenshotDiscovery
 import com.example.core.model.DuplicateGroup
 import com.example.core.model.IndexingStatus
 import com.example.core.model.ScreenshotCategory
 import com.example.core.model.ScreenshotItem
 import com.example.ui.components.ScreenshotGridItem
 import com.example.ui.components.ScreenshotThumbnail
+
+enum class ImageSourceFilter(val displayName: String) {
+    ALL("All"),
+    SCREENSHOTS("Screenshots"),
+    PHOTOS("Camera & Photos"),
+    IMPORTED("Imported & Other")
+}
 
 @Composable
 fun LibraryScreen(
@@ -61,17 +70,26 @@ fun LibraryScreen(
     onSelectScreenshot: (ScreenshotItem) -> Unit,
     onRescanMediaStore: () -> Unit,
     onSeedSamples: () -> Unit,
+    onImportImages: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var selectedSource by remember { mutableStateOf(ImageSourceFilter.ALL) }
     var selectedCategory by remember { mutableStateOf<ScreenshotCategory?>(null) }
     var selectedStatus by remember { mutableStateOf<IndexingStatus?>(null) }
     var showDuplicatesOnly by remember { mutableStateOf(false) }
 
-    val filteredList = remember(screenshots, selectedCategory, selectedStatus) {
+    val filteredList = remember(screenshots, selectedSource, selectedCategory, selectedStatus) {
         screenshots.filter { item ->
+            val matchSource = when (selectedSource) {
+                ImageSourceFilter.ALL -> true
+                ImageSourceFilter.SCREENSHOTS -> ScreenshotDiscovery.isScreenshot(item.displayName, item.relativePath)
+                ImageSourceFilter.PHOTOS -> ScreenshotDiscovery.isCameraPhoto(item.displayName, item.relativePath)
+                ImageSourceFilter.IMPORTED -> !ScreenshotDiscovery.isScreenshot(item.displayName, item.relativePath) &&
+                        !ScreenshotDiscovery.isCameraPhoto(item.displayName, item.relativePath)
+            }
             val matchCat = selectedCategory == null || item.categoryLabels.contains(selectedCategory)
             val matchStatus = selectedStatus == null || item.indexingStatus == selectedStatus
-            matchCat && matchStatus
+            matchSource && matchCat && matchStatus
         }
     }
 
@@ -90,13 +108,13 @@ fun LibraryScreen(
         ) {
             Column {
                 Text(
-                    text = "Screenshot Library",
+                    text = "Image Library",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "${screenshots.size} screenshots • ${duplicateGroups.size} duplicate clusters",
+                    text = "${screenshots.size} images • ${duplicateGroups.size} duplicate clusters",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -104,14 +122,27 @@ fun LibraryScreen(
 
             Row {
                 IconButton(
+                    onClick = onImportImages,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("import_images_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AddPhotoAlternate,
+                        contentDescription = "Import images from gallery",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                IconButton(
                     onClick = onSeedSamples,
                     modifier = Modifier
                         .size(48.dp)
                         .testTag("seed_sample_screenshots_button")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.AddPhotoAlternate,
-                        contentDescription = "Seed sample screenshots",
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Seed sample images",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -193,12 +224,40 @@ fun LibraryScreen(
                 }
             }
         } else {
+            // Source Filter Bar (All Images, Screenshots, Camera & Photos, Imported)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (source in ImageSourceFilter.entries) {
+                    val count = when (source) {
+                        ImageSourceFilter.ALL -> screenshots.size
+                        ImageSourceFilter.SCREENSHOTS -> screenshots.count { ScreenshotDiscovery.isScreenshot(it.displayName, it.relativePath) }
+                        ImageSourceFilter.PHOTOS -> screenshots.count { ScreenshotDiscovery.isCameraPhoto(it.displayName, it.relativePath) }
+                        ImageSourceFilter.IMPORTED -> screenshots.count {
+                            !ScreenshotDiscovery.isScreenshot(it.displayName, it.relativePath) &&
+                            !ScreenshotDiscovery.isCameraPhoto(it.displayName, it.relativePath)
+                        }
+                    }
+                    FilterChip(
+                        selected = selectedSource == source,
+                        onClick = { selectedSource = source },
+                        label = { Text("${source.displayName} ($count)") },
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.testTag("filter_chip_source_${source.name.lowercase()}")
+                    )
+                }
+            }
+
             // Topic Categories Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterChip(
@@ -232,7 +291,7 @@ fun LibraryScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No screenshots match the selected topic filter.",
+                        text = "No images match the selected filter.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
