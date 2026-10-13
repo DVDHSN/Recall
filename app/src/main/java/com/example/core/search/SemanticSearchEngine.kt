@@ -3,7 +3,9 @@ package com.example.core.search
 import android.util.Log
 import com.example.core.database.ScreenshotDao
 import com.example.core.database.ScreenshotEntity
+import com.example.core.ml.embedding.MobileClipEmbeddingEngine
 import com.example.core.ml.embedding.TextEmbeddingEngine
+import com.example.core.ml.embedding.VisualEmbeddingEngine
 import com.example.core.model.SearchResult
 import com.example.core.search.fusion.CandidateFusion
 import com.example.core.search.lexical.LexicalRetriever
@@ -11,6 +13,7 @@ import com.example.core.search.query.ParsedQuery
 import com.example.core.search.query.QueryParser
 import com.example.core.search.query.SearchMode
 import com.example.core.search.semantic.SemanticRetriever
+import com.example.core.search.visual.VisualRetriever
 import com.example.core.visual.PerceptualHasher
 import com.example.core.visual.VisualFeatureExtractor
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +25,9 @@ class SemanticSearchEngine(
     private val queryParser: QueryParser = QueryParser(),
     private val lexicalRetriever: LexicalRetriever = LexicalRetriever(),
     private val semanticRetriever: SemanticRetriever = SemanticRetriever(embeddingEngine),
-    private val candidateFusion: CandidateFusion = CandidateFusion()
+    private val candidateFusion: CandidateFusion = CandidateFusion(),
+    private val visualEngine: VisualEmbeddingEngine? = null,
+    private val visualRetriever: VisualRetriever? = visualEngine?.let { VisualRetriever(it) }
 ) {
 
     fun parseQuery(rawQuery: String, overrideMode: SearchMode? = null): ParsedQuery {
@@ -46,14 +51,15 @@ class SemanticSearchEngine(
 
         val startTime = System.currentTimeMillis()
 
-        // Fetch candidate indexed corpus from database
+        // Fetch candidate searchable corpus from database (includes images with OCR or visual embeddings)
         val corpus: List<ScreenshotEntity> = withContext(Dispatchers.IO) {
-            screenshotDao.getAllIndexedWithEmbeddings()
+            val all = screenshotDao.getAllSearchable()
+            if (all.isNotEmpty()) all else screenshotDao.getAllIndexedWithEmbeddings()
         }
 
         if (corpus.isEmpty()) return@withContext emptyList()
 
-        // 1. Semantic Retrieval
+        // 1. Text Semantic Retrieval
         val semanticCandidates = if (query.searchMode != SearchMode.EXACT_ONLY) {
             try {
                 semanticRetriever.retrieve(query, corpus, limit = limit * 2)
@@ -65,24 +71,37 @@ class SemanticSearchEngine(
             emptyList()
         }
 
-        // 2. Lexical Retrieval
-        val lexicalCandidates = if (query.searchMode != SearchMode.SEMANTIC_ONLY) {
+        // 2. Cross-Modal Visual Semantic Retrieval (MobileCLIP)
+        val visualCandidates = if (query.searchMode != SearchMode.EXACT_ONLY && visualRetriever != null) {
+            try {
+                visualRetriever.retrieve(query, corpus, limit = limit * 2)
+            } catch (e: Exception) {
+                Log.e(TAG, "Visual retrieval failed", e)
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+
+        // 3. Lexical Keyword Retrieval
+        val lexicalCandidates = if (query.searchMode != SearchMode.SEMANTIC_ONLY && query.searchMode != SearchMode.VISUAL_SIMILAR) {
             lexicalRetriever.retrieve(query, corpus, limit = limit * 2)
         } else {
             emptyList()
         }
 
-        // 3. Candidate Fusion & Intelligent Ranking
+        // 4. Candidate Fusion & Intelligent Adaptive Ranking
         val finalResults = candidateFusion.fuseAndRank(
             query = query,
             semanticCandidates = semanticCandidates,
             lexicalCandidates = lexicalCandidates,
+            visualCandidates = visualCandidates,
             allIndexedCorpus = corpus,
             limit = limit
         )
 
         val duration = System.currentTimeMillis() - startTime
-        Log.d(TAG, "Search for '${query.rawQuery}' returned ${finalResults.size} results in ${duration}ms")
+        Log.d(TAG, "Search for '${query.rawQuery}' (mode=${query.searchMode}, intent=${query.queryIntent}) returned ${finalResults.size} results in ${duration}ms")
         finalResults
     }
 
@@ -101,7 +120,11 @@ class SemanticSearchEngine(
         for (doc in allDocs) {
             var visualSim = 0f
             if (targetVec != null && doc.visualBlob != null) {
-                visualSim = VisualFeatureExtractor.cosineSimilarity(targetVec, doc.visualBlob)
+                visualSim = if (targetVec.size == 512 && doc.visualBlob.size == 512) {
+                    MobileClipEmbeddingEngine.cosineSimilarity(targetVec, doc.visualBlob)
+                } else {
+                    VisualFeatureExtractor.cosineSimilarity(targetVec, doc.visualBlob)
+                }
             }
 
             val isNearDup = if (targetPHash != 0L && doc.perceptualHash != 0L) {
@@ -114,11 +137,11 @@ class SemanticSearchEngine(
 
             val combined = if (isNearDup) 0.95f else visualSim
 
-            if (combined > 0.4f || isNearDup) {
+            if (combined > 0.35f || isNearDup) {
                 val explanation = if (isNearDup) {
                     "Probable near-duplicate image (difference: $distance bits)"
                 } else {
-                    "Visually similar layout and color structure"
+                    "Visually similar content & scene structure (${(combined * 100).toInt()}% similarity)"
                 }
 
                 results.add(
@@ -128,7 +151,7 @@ class SemanticSearchEngine(
                         lexicalScore = 0f,
                         visualScore = combined,
                         combinedScore = combined,
-                        snippet = doc.ocrText.take(120).ifEmpty { "Visual match" },
+                        snippet = doc.ocrText.take(120).ifEmpty { "Visual similarity match" },
                         explanation = explanation,
                         hasNearDuplicates = isNearDup,
                         nearDuplicateCount = if (isNearDup) 1 else 0

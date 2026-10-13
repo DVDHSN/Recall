@@ -167,6 +167,90 @@ class SyntheticScreenshotGenerator(private val context: Context) {
             ),
             headerColor = Color.rgb(88, 28, 135),
             accentColor = Color.rgb(168, 85, 247)
+        ),
+        SampleTemplate(
+            filename = "Photo_20261013_Red_Ferrari_Night.jpg",
+            title = "A Red Ferrari at Night",
+            subtitle = "Exotic Sports Car Exhibition",
+            bodyLines = listOf(
+                "Automotive Spotlight:",
+                "- Vehicle: Ferrari SF90 Stradale in Rosso Corsa red",
+                "- Setting: Urban neon street lights at midnight",
+                "- Twin-turbocharged V8 hybrid powertrain",
+                "- High-contrast visual color silhouette on dark backdrop."
+            ),
+            headerColor = Color.rgb(185, 28, 28),
+            accentColor = Color.rgb(239, 68, 68)
+        ),
+        SampleTemplate(
+            filename = "Photo_20261012_Golden_Sunset_Ocean.jpg",
+            title = "A Golden Sunset Over the Ocean",
+            subtitle = "Pacific Coastline Golden Hour",
+            bodyLines = listOf(
+                "Nature Photography:",
+                "- Warm golden and orange twilight sky reflecting on ocean waters",
+                "- Low horizon with calm deep blue ocean swells",
+                "- Captured during autumn equinox at 6:42 PM",
+                "- High chromatic saturation across upper and lower visual field."
+            ),
+            headerColor = Color.rgb(217, 119, 6),
+            accentColor = Color.rgb(245, 158, 11)
+        ),
+        SampleTemplate(
+            filename = "Photo_20261011_Cat_Sleeping_Sofa.jpg",
+            title = "A Cat Sleeping on a Sofa",
+            subtitle = "Domestic Feline Lounging",
+            bodyLines = listOf(
+                "Pet Moments:",
+                "- Ginger tabby cat peacefully curled up sleeping",
+                "- Soft textured gray fabric sofa background",
+                "- Focal center subject with distinctive fur texture",
+                "- Relaxed ambient indoor natural lighting."
+            ),
+            headerColor = Color.rgb(120, 53, 15),
+            accentColor = Color.rgb(217, 119, 6)
+        ),
+        SampleTemplate(
+            filename = "Diagram_20261010_Science_Cell_Structure.png",
+            title = "A Blue and White School Science Diagram",
+            subtitle = "Cell Biology & Organelles",
+            bodyLines = listOf(
+                "Educational Diagram:",
+                "- High contrast clean white paper background",
+                "- Crisp blue circular cell membrane & organelle boundaries",
+                "- Labels: Nucleus, Mitochondria, Endoplasmic Reticulum",
+                "- High spatial line gradients and geometric structure."
+            ),
+            headerColor = Color.rgb(29, 78, 216),
+            accentColor = Color.rgb(59, 130, 246)
+        ),
+        SampleTemplate(
+            filename = "Photo_20261009_Product_Box_Green_Label.jpg",
+            title = "A Product Box with a Green Label",
+            subtitle = "Eco-Friendly Packaging",
+            bodyLines = listOf(
+                "Product Packaging:",
+                "- Minimalist recycled cardboard product box",
+                "- Prominent emerald green organic certification label",
+                "- Crisp rectangular geometric packaging contours",
+                "- Distinctive central green chromaticity signature."
+            ),
+            headerColor = Color.rgb(21, 128, 61),
+            accentColor = Color.rgb(34, 197, 94)
+        ),
+        SampleTemplate(
+            filename = "Photo_20261008_Mountain_Above.jpg",
+            title = "A Photo of a Mountain from Above",
+            subtitle = "Aerial Mountain Range Vista",
+            bodyLines = listOf(
+                "Geographic Scenery:",
+                "- High altitude aerial view overlooking jagged mountain ridge",
+                "- Rocky granite texture and snow-capped peaks",
+                "- Dramatic elevation gradients and terrain shadows",
+                "- Wide angle landscape perspective from aircraft."
+            ),
+            headerColor = Color.rgb(71, 85, 105),
+            accentColor = Color.rgb(100, 116, 139)
         )
     )
 

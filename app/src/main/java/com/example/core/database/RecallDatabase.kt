@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ScreenshotEntity::class],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -33,6 +33,24 @@ abstract class RecallDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE screenshots ADD COLUMN bucketName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE screenshots ADD COLUMN imageSource TEXT NOT NULL DEFAULT 'OTHER'")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_screenshots_imageSource ON screenshots(imageSource)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_screenshots_bucketName ON screenshots(bucketName)")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE screenshots ADD COLUMN visualModelVersion TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE screenshots ADD COLUMN visualDimension INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE screenshots ADD COLUMN visualEmbeddingStatus TEXT NOT NULL DEFAULT 'PENDING'")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_screenshots_visualEmbeddingStatus ON screenshots(visualEmbeddingStatus)")
+            }
+        }
+
         fun getInstance(context: Context): RecallDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -40,9 +58,7 @@ abstract class RecallDatabase : RoomDatabase() {
                     RecallDatabase::class.java,
                     "recall_screenshots.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
-                    .fallbackToDestructiveMigration(true)
-                    .fallbackToDestructiveMigrationOnDowngrade(true)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
                 instance

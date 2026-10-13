@@ -70,6 +70,14 @@ class SearchEngineEvaluationTest {
         override suspend fun clearAll() {}
         override suspend fun resetAllForReindexing() {}
         override suspend fun retryFailed() {}
+        override suspend fun resetInterruptedProcessing(): Int = 0
+        override suspend fun getAwaitingVisualEmbedding(limit: Int): List<ScreenshotEntity> = emptyList()
+        override suspend fun updateVisualEmbedding(id: Long, visualBlob: FloatArray?, visualModelVersion: String, visualDimension: Int, status: String) {}
+        override fun getVisualPendingCountFlow(): Flow<Int> = flowOf(0)
+        override suspend fun getAllWithVisualEmbeddings(): List<ScreenshotEntity> = corpus.filter { it.visualBlob != null }
+        override suspend fun getAllSearchable(): List<ScreenshotEntity> = corpus
+        override fun getByImageSourceFlow(imageSource: String): Flow<List<ScreenshotEntity>> = flowOf(corpus.filter { it.imageSource == imageSource })
+        override suspend fun deleteAllMediaStoreItems(): Int = 0
     }
 
     @Test

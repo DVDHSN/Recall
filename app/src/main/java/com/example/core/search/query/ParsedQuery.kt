@@ -19,6 +19,12 @@ enum class SearchMode(val displayName: String) {
     VISUAL_SIMILAR("Visually Similar")
 }
 
+enum class QueryIntent(val displayName: String) {
+    VISUAL_DOMINANT("Visual Search"),
+    TEXTUAL_DOMINANT("Text & Keywords"),
+    BALANCED_HYBRID("Balanced Hybrid")
+}
+
 data class InferredFilter(
     val id: String,
     val label: String,
@@ -34,5 +40,6 @@ data class ParsedQuery(
     val exactPhrases: List<String> = emptyList(),
     val technicalIdentifiers: List<String> = emptyList(),
     val searchMode: SearchMode = SearchMode.HYBRID,
+    val queryIntent: QueryIntent = QueryIntent.BALANCED_HYBRID,
     val inferredFilters: List<InferredFilter> = emptyList()
 )

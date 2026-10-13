@@ -220,7 +220,7 @@ fun ScreenshotDetailScreen(
                     )
                     MetadataRow(
                         label = "Visual Vector",
-                        value = if (item.visualVector != null) "32-dim Spatial Layout Color" else "Not generated"
+                        value = if (item.visualDimension > 0) "${item.visualDimension} dims • ${item.visualModelVersion}" else if (item.visualBlob != null) "${item.visualBlob.size} dims" else "Not generated"
                     )
                     if (item.perceptualHash != 0L) {
                         MetadataRow(

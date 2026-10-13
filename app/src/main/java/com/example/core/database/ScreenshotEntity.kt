@@ -15,7 +15,10 @@ import com.example.core.model.ScreenshotItem
         Index(value = ["dateModified"]),
         Index(value = ["displayName"]),
         Index(value = ["contentHash"]),
-        Index(value = ["perceptualHash"])
+        Index(value = ["perceptualHash"]),
+        Index(value = ["imageSource"]),
+        Index(value = ["bucketName"]),
+        Index(value = ["visualEmbeddingStatus"])
     ]
 )
 data class ScreenshotEntity(
@@ -45,7 +48,12 @@ data class ScreenshotEntity(
     val categoryLabels: String = "",
     val classificationConfidence: Float = 0f,
     val ocrError: String? = null,
-    val embeddingError: String? = null
+    val embeddingError: String? = null,
+    val bucketName: String = "",
+    val imageSource: String = "OTHER",
+    val visualModelVersion: String = "",
+    val visualDimension: Int = 0,
+    val visualEmbeddingStatus: String = "PENDING"
 ) {
     fun toDomain(): ScreenshotItem {
         val categories = categoryLabels.split(",")
@@ -73,11 +81,16 @@ data class ScreenshotEntity(
             embeddingVector = embeddingBlob,
             contentHash = contentHash,
             perceptualHash = perceptualHash,
-            visualVector = visualBlob,
+            visualBlob = visualBlob,
             categoryLabels = categories,
             classificationConfidence = classificationConfidence,
             ocrError = ocrError,
-            embeddingError = embeddingError
+            embeddingError = embeddingError,
+            bucketName = bucketName,
+            imageSource = imageSource,
+            visualModelVersion = visualModelVersion,
+            visualDimension = visualDimension,
+            visualEmbeddingStatus = visualEmbeddingStatus
         )
     }
 
@@ -93,10 +106,19 @@ data class ScreenshotEntity(
         if (ocrText != other.ocrText) return false
         if (contentHash != other.contentHash) return false
         if (perceptualHash != other.perceptualHash) return false
+        if (bucketName != other.bucketName) return false
+        if (imageSource != other.imageSource) return false
+        if (visualModelVersion != other.visualModelVersion) return false
+        if (visualDimension != other.visualDimension) return false
+        if (visualEmbeddingStatus != other.visualEmbeddingStatus) return false
         if (embeddingBlob != null) {
             if (other.embeddingBlob == null) return false
             if (!embeddingBlob.contentEquals(other.embeddingBlob)) return false
         } else if (other.embeddingBlob != null) return false
+        if (visualBlob != null) {
+            if (other.visualBlob == null) return false
+            if (!visualBlob.contentEquals(other.visualBlob)) return false
+        } else if (other.visualBlob != null) return false
         return true
     }
 
@@ -109,7 +131,13 @@ data class ScreenshotEntity(
         result = 31 * result + indexingStatus.hashCode()
         result = 31 * result + contentHash.hashCode()
         result = 31 * result + perceptualHash.hashCode()
+        result = 31 * result + bucketName.hashCode()
+        result = 31 * result + imageSource.hashCode()
+        result = 31 * result + visualModelVersion.hashCode()
+        result = 31 * result + visualDimension.hashCode()
+        result = 31 * result + visualEmbeddingStatus.hashCode()
         result = 31 * result + (embeddingBlob?.contentHashCode() ?: 0)
+        result = 31 * result + (visualBlob?.contentHashCode() ?: 0)
         return result
     }
 
@@ -138,11 +166,16 @@ data class ScreenshotEntity(
                 embeddingBlob = item.embeddingVector,
                 contentHash = item.contentHash,
                 perceptualHash = item.perceptualHash,
-                visualBlob = item.visualVector,
+                visualBlob = item.visualBlob,
                 categoryLabels = categoriesStr,
                 classificationConfidence = item.classificationConfidence,
                 ocrError = item.ocrError,
-                embeddingError = item.embeddingError
+                embeddingError = item.embeddingError,
+                bucketName = item.bucketName,
+                imageSource = item.imageSource,
+                visualModelVersion = item.visualModelVersion,
+                visualDimension = item.visualDimension,
+                visualEmbeddingStatus = item.visualEmbeddingStatus
             )
         }
     }

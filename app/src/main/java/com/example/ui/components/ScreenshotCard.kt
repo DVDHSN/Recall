@@ -100,19 +100,20 @@ fun SearchResultCard(
 
                     // Match confidence badge
                     val matchPercent = (result.combinedScore * 100).toInt().coerceIn(15, 99)
+                    val isVisualDominant = result.visualScore > 0.45f && (result.visualScore > result.semanticScore || result.screenshot.ocrText.isBlank())
                     Box(
                         modifier = Modifier
                             .background(
-                                color = MaterialTheme.colorScheme.primaryContainer,
+                                color = if (isVisualDominant) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
                                 shape = RoundedCornerShape(6.dp)
                             )
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "$matchPercent% match",
+                            text = if (isVisualDominant) "${(result.visualScore * 100).toInt()}% visual" else "$matchPercent% match",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = if (isVisualDominant) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }

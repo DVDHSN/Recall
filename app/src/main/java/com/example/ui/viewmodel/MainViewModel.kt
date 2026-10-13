@@ -61,6 +61,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _scopeScreenshotsOnly = MutableStateFlow(false)
     val scopeScreenshotsOnly: StateFlow<Boolean> = _scopeScreenshotsOnly.asStateFlow()
 
+    val mediaPermissionState: StateFlow<com.example.core.model.MediaPermissionState> = repository.mediaPermissionState
+
     val duplicateGroups: StateFlow<List<DuplicateGroup>> = repository.duplicateGroups
 
     val allScreenshots: StateFlow<List<ScreenshotItem>> = repository.allScreenshotsFlow
@@ -168,6 +170,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.discoverAndReconcile(screenshotsOnly = _scopeScreenshotsOnly.value)
         }
+    }
+
+    fun updatePermissionState() {
+        repository.updatePermissionState()
     }
 
     fun discoverScreenshots() {

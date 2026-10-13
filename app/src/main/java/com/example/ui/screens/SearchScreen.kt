@@ -69,14 +69,16 @@ fun SearchScreen(
     modifier: Modifier = Modifier
 ) {
     val sampleQueries = listOf(
+        "A red Ferrari at night",
+        "A golden sunset over the ocean",
+        "A cat sleeping on a sofa",
+        "A blue and white school science diagram",
+        "A product box with a green label",
+        "A photo of a mountain from above",
         "Recipe with chickpeas and coconut milk",
-        "The Python error I saw yesterday",
-        "Wi-Fi password from school",
-        "Graphics card RTX 4070 vs 7800",
-        "Notes about plants growing toward light",
         "192.168.1.1 router gateway",
-        "HTTP 404 not found error",
-        "Apartment lease rent contract"
+        "Wi-Fi password from school",
+        "The Python error I saw yesterday"
     )
 
     Column(

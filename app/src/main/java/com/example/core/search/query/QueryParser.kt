@@ -101,6 +101,13 @@ class QueryParser(
             else -> SearchMode.HYBRID
         }
 
+        val queryIntent = classifyQueryIntent(
+            rawQuery = trimmed,
+            cleanSearchText = finalCleanText,
+            technicalIdentifiers = technicalIdentifiers,
+            exactPhrases = exactPhrases
+        )
+
         return ParsedQuery(
             rawQuery = trimmed,
             cleanSearchText = finalCleanText,
@@ -110,8 +117,45 @@ class QueryParser(
             exactPhrases = exactPhrases,
             technicalIdentifiers = technicalIdentifiers.distinct(),
             searchMode = searchMode,
+            queryIntent = queryIntent,
             inferredFilters = inferredFilters
         )
+    }
+
+    private fun classifyQueryIntent(
+        rawQuery: String,
+        cleanSearchText: String,
+        technicalIdentifiers: List<String>,
+        exactPhrases: List<String>
+    ): QueryIntent {
+        if (technicalIdentifiers.isNotEmpty() || exactPhrases.isNotEmpty()) {
+            return QueryIntent.TEXTUAL_DOMINANT
+        }
+
+        val lower = cleanSearchText.lowercase(Locale.ROOT)
+        val textKeywords = listOf(
+            "exception", "error", "stacktrace", "traceback", "nullpointer", "password",
+            "token", "http", "api", "json", "code", "database", "query", "sql", "import",
+            "class", "port", "log", "debug", "failed", "warning"
+        )
+        if (textKeywords.any { lower.contains(it) }) {
+            return QueryIntent.TEXTUAL_DOMINANT
+        }
+
+        val visualKeywords = listOf(
+            "red", "green", "blue", "yellow", "golden", "gold", "orange", "purple", "white", "black", "pink",
+            "photo", "picture", "image", "sunset", "sunrise", "ocean", "sea", "mountain", "car", "ferrari",
+            "cat", "dog", "sofa", "couch", "landscape", "diagram", "box", "package", "sky", "forest", "beach",
+            "night", "sleeping", "above", "label", "nature", "scenery", "drawing", "illustration",
+            "water", "tree", "flowers", "view", "aerial"
+        )
+        val matchesVisual = visualKeywords.any { lower.contains(it) }
+
+        return if (matchesVisual) {
+            QueryIntent.VISUAL_DOMINANT
+        } else {
+            QueryIntent.BALANCED_HYBRID
+        }
     }
 
     private fun extractDateConstraint(text: String): Pair<DateRangeConstraint?, String> {

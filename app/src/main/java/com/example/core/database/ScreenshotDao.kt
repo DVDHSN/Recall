@@ -41,14 +41,35 @@ interface ScreenshotDao {
     @Query("SELECT * FROM screenshots WHERE indexingStatus IN ('PENDING', 'NEEDS_REINDEX') ORDER BY dateModified DESC LIMIT :limit")
     suspend fun getAwaitingIndexing(limit: Int = 50): List<ScreenshotEntity>
 
+    @Query("SELECT * FROM screenshots WHERE visualEmbeddingStatus IN ('PENDING', 'NEEDS_REINDEX') AND indexingStatus != 'FAILED' ORDER BY dateModified DESC LIMIT :limit")
+    suspend fun getAwaitingVisualEmbedding(limit: Int = 20): List<ScreenshotEntity>
+
+    @Query("UPDATE screenshots SET visualBlob = :visualBlob, visualModelVersion = :visualModelVersion, visualDimension = :visualDimension, visualEmbeddingStatus = :status WHERE id = :id")
+    suspend fun updateVisualEmbedding(id: Long, visualBlob: FloatArray?, visualModelVersion: String, visualDimension: Int, status: String)
+
+    @Query("SELECT COUNT(*) FROM screenshots WHERE visualEmbeddingStatus IN ('PENDING', 'NEEDS_REINDEX')")
+    fun getVisualPendingCountFlow(): Flow<Int>
+
+    @Query("SELECT * FROM screenshots WHERE visualBlob IS NOT NULL")
+    suspend fun getAllWithVisualEmbeddings(): List<ScreenshotEntity>
+
     @Query("UPDATE screenshots SET indexingStatus = 'NEEDS_REINDEX' WHERE indexingStatus = 'FAILED'")
     suspend fun retryFailed()
+
+    @Query("UPDATE screenshots SET indexingStatus = 'PENDING' WHERE indexingStatus = 'PROCESSING'")
+    suspend fun resetInterruptedProcessing(): Int
 
     @Query("SELECT * FROM screenshots WHERE indexingStatus = 'INDEXED' AND embeddingBlob IS NOT NULL")
     suspend fun getAllIndexedWithEmbeddings(): List<ScreenshotEntity>
 
+    @Query("SELECT * FROM screenshots WHERE indexingStatus IN ('INDEXED', 'EMPTY_TEXT') OR visualBlob IS NOT NULL")
+    suspend fun getAllSearchable(): List<ScreenshotEntity>
+
     @Query("SELECT * FROM screenshots WHERE categoryLabels LIKE '%' || :category || '%' ORDER BY dateModified DESC")
     fun getByCategoryFlow(category: String): Flow<List<ScreenshotEntity>>
+
+    @Query("SELECT * FROM screenshots WHERE imageSource = :imageSource ORDER BY dateModified DESC")
+    fun getByImageSourceFlow(imageSource: String): Flow<List<ScreenshotEntity>>
 
     @Query("SELECT id, mediaStoreId, displayName, contentHash, perceptualHash, dateModified FROM screenshots WHERE perceptualHash != 0")
     suspend fun getAllDuplicateHashInfo(): List<DuplicateHashInfo>
@@ -92,12 +113,15 @@ interface ScreenshotDao {
     @Query("DELETE FROM screenshots WHERE mediaStoreId NOT IN (:keepMediaStoreIds) AND relativePath != 'Imported'")
     suspend fun deleteMissing(keepMediaStoreIds: List<Long>): Int
 
+    @Query("DELETE FROM screenshots WHERE relativePath != 'Imported'")
+    suspend fun deleteAllMediaStoreItems(): Int
+
     @Query("DELETE FROM screenshots WHERE id = :id")
     suspend fun deleteById(id: Long)
 
     @Query("DELETE FROM screenshots")
     suspend fun clearAll()
 
-    @Query("UPDATE screenshots SET indexingStatus = 'NEEDS_REINDEX', embeddingBlob = NULL, ocrText = ''")
+    @Query("UPDATE screenshots SET indexingStatus = 'NEEDS_REINDEX', embeddingBlob = NULL, ocrText = '', visualEmbeddingStatus = 'NEEDS_REINDEX'")
     suspend fun resetAllForReindexing()
 }

@@ -1,20 +1,29 @@
 package com.example.core.repository
 
 import android.content.Context
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import android.util.Log
 import com.example.core.database.RecallDatabase
 import com.example.core.database.ScreenshotDao
 import com.example.core.database.ScreenshotEntity
+import com.example.core.indexing.IndexingWorker
 import com.example.core.indexing.ScreenshotIndexer
 import com.example.core.indexing.SyntheticScreenshotGenerator
 import com.example.core.media.ScreenshotDiscovery
+import com.example.core.ml.embedding.MobileClipEmbeddingEngine
 import com.example.core.ml.embedding.OnnxTextEmbeddingEngine
 import com.example.core.ml.embedding.TextEmbeddingEngine
+import com.example.core.ml.embedding.VisualEmbeddingEngine
 import com.example.core.ml.ocr.MlKitOcrEngine
 import com.example.core.ml.ocr.OcrEngine
 import com.example.core.model.DuplicateGroup
 import com.example.core.model.IndexStats
 import com.example.core.model.IndexingStatus
+import com.example.core.model.MediaPermissionState
 import com.example.core.model.ScreenshotCategory
 import com.example.core.model.ScreenshotItem
 import com.example.core.model.SearchResult
@@ -22,11 +31,11 @@ import com.example.core.search.SemanticSearchEngine
 import com.example.core.search.query.ParsedQuery
 import com.example.core.search.query.SearchMode
 import com.example.core.visual.PerceptualHasher
-import com.example.core.indexing.IndexingWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,12 +50,20 @@ class ScreenshotRepository(
     private val database: RecallDatabase = RecallDatabase.getInstance(context),
     private val discovery: ScreenshotDiscovery = ScreenshotDiscovery(context),
     private val ocrEngine: OcrEngine = MlKitOcrEngine.getInstance(),
-    private val embeddingEngine: TextEmbeddingEngine = OnnxTextEmbeddingEngine.getInstance(context)
+    private val embeddingEngine: TextEmbeddingEngine = OnnxTextEmbeddingEngine.getInstance(context),
+    private val visualEngine: VisualEmbeddingEngine = MobileClipEmbeddingEngine.getInstance(context)
 ) {
     private val dao: ScreenshotDao = database.screenshotDao()
-    private val indexer = ScreenshotIndexer(discovery, ocrEngine, embeddingEngine, dao)
-    private val searchEngine = SemanticSearchEngine(embeddingEngine, dao)
+    private val indexer = ScreenshotIndexer(discovery, ocrEngine, embeddingEngine, dao, visualEngine)
+    private val searchEngine = SemanticSearchEngine(
+        embeddingEngine = embeddingEngine,
+        screenshotDao = dao,
+        visualEngine = visualEngine
+    )
     private val generator = SyntheticScreenshotGenerator(context)
+
+    private val _mediaPermissionState = MutableStateFlow(discovery.getMediaPermissionState())
+    val mediaPermissionState = _mediaPermissionState.asStateFlow()
 
     private val _isIndexingActive = MutableStateFlow(false)
     val isIndexingActive = _isIndexingActive.asStateFlow()
@@ -54,6 +71,7 @@ class ScreenshotRepository(
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val indexingMutex = Mutex()
     private var activeIndexingJob: Job? = null
+    private var mediaObserverDebounceJob: Job? = null
 
     private val _currentProcessingName = MutableStateFlow<String?>(null)
     val currentProcessingName = _currentProcessingName.asStateFlow()
@@ -104,33 +122,68 @@ class ScreenshotRepository(
             currentProgressPercent = progressPercent,
             modelVersion = embeddingEngine.modelVersion,
             modelDimensions = embeddingEngine.embeddingDimension,
+            visualModelVersion = visualEngine.modelVersion,
             lastSearchLatencyMs = latency,
             duplicateGroupCount = dupGroups.size
         )
     }
 
-    suspend fun discoverAndReconcile(screenshotsOnly: Boolean = false): Int = withContext(Dispatchers.IO) {
-        var discovered = discovery.discoverScreenshots(screenshotsOnly = screenshotsOnly)
+    init {
+        registerMediaStoreObserver()
+    }
 
-        // If no images exist (e.g. fresh emulator), generate realistic samples
-        if (discovered.isEmpty()) {
-            val generated = generator.generateSampleScreenshots()
-            if (generated > 0) {
-                discovered = discovery.discoverScreenshots(screenshotsOnly = screenshotsOnly)
+    private fun registerMediaStoreObserver() {
+        try {
+            val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(selfChange: Boolean, uri: Uri?) {
+                    super.onChange(selfChange, uri)
+                    // Debounce rapid MediaStore change notifications
+                    mediaObserverDebounceJob?.cancel()
+                    mediaObserverDebounceJob = appScope.launch {
+                        delay(1200)
+                        if (discovery.getMediaPermissionState() != MediaPermissionState.DENIED) {
+                            Log.d(TAG, "MediaStore change detected, reconciling images...")
+                            discoverAndReconcile()
+                        }
+                    }
+                }
             }
+            context.contentResolver.registerContentObserver(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                true,
+                observer
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not register MediaStore content observer: ${e.message}")
+        }
+    }
+
+    fun updatePermissionState(): MediaPermissionState {
+        val newState = discovery.getMediaPermissionState()
+        _mediaPermissionState.value = newState
+        return newState
+    }
+
+    suspend fun discoverAndReconcile(screenshotsOnly: Boolean = false): Int = withContext(Dispatchers.IO) {
+        val permState = updatePermissionState()
+        if (permState == MediaPermissionState.DENIED) {
+            Log.d(TAG, "discoverAndReconcile: Media permission DENIED; skipping reconciliation.")
+            return@withContext 0
         }
 
+        val discovered = discovery.discoverScreenshots(screenshotsOnly = screenshotsOnly)
+        val existingIds = dao.getAllMediaStoreIds().toSet()
+
         if (discovered.isNotEmpty()) {
-            val existingIds = dao.getAllMediaStoreIds().toSet()
             val newEntities = mutableListOf<ScreenshotEntity>()
 
             for (item in discovered) {
                 if (!existingIds.contains(item.mediaStoreId)) {
                     newEntities.add(ScreenshotEntity.fromDomain(item))
                 } else {
-                    // Check if modified
+                    // Check if modified on disk
                     val existing = dao.getByMediaStoreId(item.mediaStoreId)
-                    if (existing != null && existing.dateModified != item.dateModified) {
+                    if (existing != null && (existing.dateModified != item.dateModified || existing.sizeBytes != item.sizeBytes)) {
                         dao.update(
                             existing.copy(
                                 dateModified = item.dateModified,
@@ -143,16 +196,65 @@ class ScreenshotRepository(
             }
 
             if (newEntities.isNotEmpty()) {
-                dao.insertAll(newEntities)
+                // Insert in safe batches
+                newEntities.chunked(100).forEach { batch ->
+                    dao.insertAll(batch)
+                }
             }
 
-            // Remove deleted items (preserves Imported items with relativePath == 'Imported')
-            val currentMediaIds = discovered.map { it.mediaStoreId }
-            dao.deleteMissing(currentMediaIds)
+            // Deletion handling:
+            if (permState == MediaPermissionState.FULL_ACCESS) {
+                // When FULL_ACCESS is granted, any MediaStore ID not present in discovered was deleted
+                val currentMediaIds = discovered.map { it.mediaStoreId }
+                dao.deleteMissing(currentMediaIds)
+            }
+            // In PARTIAL_ACCESS mode, we DO NOT delete unselected MediaStore items from database,
+            // because MediaStore only returns the subset chosen by user.
+        } else if (permState == MediaPermissionState.FULL_ACCESS && !screenshotsOnly) {
+            // Entire media collection is empty on device
+            dao.deleteAllMediaStoreItems()
         }
 
         refreshDuplicateGroups()
         discovered.size
+    }
+
+    suspend fun indexPendingVisualEmbeddings(batchLimit: Int = 20): Int = withContext(Dispatchers.IO) {
+        val pendingVisual = dao.getAwaitingVisualEmbedding(batchLimit)
+        if (pendingVisual.isEmpty()) return@withContext 0
+
+        var count = 0
+        for (entity in pendingVisual) {
+            if (!_isIndexingActive.value) break // Cooperative pause
+            val bitmap = discovery.loadDownscaledBitmap(entity.contentUri, maxDimension = 224)
+            if (bitmap != null) {
+                try {
+                    val vec = visualEngine.generateImageEmbedding(bitmap)
+                    dao.updateVisualEmbedding(
+                        id = entity.id,
+                        visualBlob = vec,
+                        visualModelVersion = visualEngine.modelVersion,
+                        visualDimension = visualEngine.embeddingDimension,
+                        status = "READY"
+                    )
+                    count++
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed computing visual embedding for image ${entity.id}: ${e.message}")
+                } finally {
+                    bitmap.recycle()
+                }
+            } else {
+                dao.updateVisualEmbedding(
+                    id = entity.id,
+                    visualBlob = null,
+                    visualModelVersion = visualEngine.modelVersion,
+                    visualDimension = 0,
+                    status = "FAILED"
+                )
+            }
+            delay(10)
+        }
+        count
     }
 
     suspend fun indexPendingScreenshots(batchLimit: Int = 50): Int = withContext(Dispatchers.IO) {
@@ -165,6 +267,10 @@ class ScreenshotRepository(
         var indexedCount = 0
 
         try {
+            // Recover any items interrupted while PROCESSING (e.g. app restart or crash)
+            dao.resetInterruptedProcessing()
+
+            // Phase 1: Fast OCR & Text Embedding
             while (_isIndexingActive.value) {
                 val pending = dao.getAwaitingIndexing(batchLimit)
                 if (pending.isEmpty()) break
@@ -175,8 +281,15 @@ class ScreenshotRepository(
                     val success = indexer.indexScreenshot(entity)
                     if (success) indexedCount++
                     // Brief throttle to maintain device responsiveness
-                    kotlinx.coroutines.delay(20)
+                    delay(20)
                 }
+            }
+
+            // Phase 2: Background Visual Embeddings for images needing visual vectors
+            while (_isIndexingActive.value) {
+                val visualBatchCount = indexPendingVisualEmbeddings(batchLimit = 20)
+                if (visualBatchCount == 0) break
+                delay(20)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error in indexPendingScreenshots", e)
@@ -283,6 +396,12 @@ class ScreenshotRepository(
 
     fun getScreenshotsByCategory(category: ScreenshotCategory): Flow<List<ScreenshotItem>> {
         return dao.getByCategoryFlow(category.name).map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    fun getScreenshotsByImageSource(imageSource: String): Flow<List<ScreenshotItem>> {
+        return dao.getByImageSourceFlow(imageSource).map { entities ->
             entities.map { it.toDomain() }
         }
     }

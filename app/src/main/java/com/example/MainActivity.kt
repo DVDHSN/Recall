@@ -1,7 +1,6 @@
 package com.example
 
 import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -33,8 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.core.model.MediaPermissionState
 import com.example.ui.screens.DiagnosticsScreen
 import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.ScreenshotDetailScreen
@@ -84,6 +83,7 @@ fun MainAppContainer(viewModel: MainViewModel) {
     val benchmarkReport by viewModel.benchmarkReport.collectAsStateWithLifecycle()
     val isBenchmarking by viewModel.isBenchmarking.collectAsStateWithLifecycle()
     val scopeScreenshotsOnly by viewModel.scopeScreenshotsOnly.collectAsStateWithLifecycle()
+    val mediaPermissionState by viewModel.mediaPermissionState.collectAsStateWithLifecycle()
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -109,19 +109,16 @@ fun MainAppContainer(viewModel: MainViewModel) {
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        viewModel.discoverScreenshots()
+        viewModel.updatePermissionState()
+        viewModel.discoverImages()
     }
 
     LaunchedEffect(Unit) {
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.READ_MEDIA_IMAGES
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasPermission) {
+        viewModel.updatePermissionState()
+        if (viewModel.mediaPermissionState.value == MediaPermissionState.DENIED) {
             permissionLauncher.launch(permissionsToRequest)
         } else {
-            viewModel.discoverScreenshots()
+            viewModel.discoverImages()
         }
     }
 
@@ -200,13 +197,15 @@ fun MainAppContainer(viewModel: MainViewModel) {
                         screenshots = allScreenshots,
                         duplicateGroups = duplicateGroups,
                         onSelectScreenshot = { viewModel.selectScreenshot(it) },
-                        onRescanMediaStore = { viewModel.discoverScreenshots() },
+                        onRescanMediaStore = { viewModel.discoverImages() },
                         onSeedSamples = { viewModel.seedSampleScreenshots() },
                         onImportImages = {
                             photoPickerLauncher.launch(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
-                        }
+                        },
+                        mediaPermissionState = mediaPermissionState,
+                        onRequestPermissions = { permissionLauncher.launch(permissionsToRequest) }
                     )
 
                     NavigationTab.DIAGNOSTICS -> DiagnosticsScreen(
@@ -217,7 +216,7 @@ fun MainAppContainer(viewModel: MainViewModel) {
                     )
 
                     NavigationTab.SETTINGS -> SettingsScreen(
-                        onRescanMediaStore = { viewModel.discoverScreenshots() },
+                        onRescanMediaStore = { viewModel.discoverImages() },
                         onSeedSamples = { viewModel.seedSampleScreenshots() },
                         onRebuildIndex = { viewModel.resetAllForReindexing() },
                         onClearIndex = { viewModel.clearIndex() },

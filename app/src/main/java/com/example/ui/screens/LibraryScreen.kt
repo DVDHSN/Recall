@@ -25,16 +25,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,20 +50,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.AutoAwesome
-import com.example.core.media.ScreenshotDiscovery
 import com.example.core.model.DuplicateGroup
+import com.example.core.model.ImageSource
 import com.example.core.model.IndexingStatus
+import com.example.core.model.MediaPermissionState
 import com.example.core.model.ScreenshotCategory
 import com.example.core.model.ScreenshotItem
 import com.example.ui.components.ScreenshotGridItem
 import com.example.ui.components.ScreenshotThumbnail
 
-enum class ImageSourceFilter(val displayName: String) {
-    ALL("All"),
-    SCREENSHOTS("Screenshots"),
-    PHOTOS("Camera & Photos"),
-    IMPORTED("Imported & Other")
+enum class ImageSourceFilter(val displayName: String, val source: ImageSource?) {
+    ALL("All", null),
+    PHOTOS("Camera Photos", ImageSource.CAMERA),
+    SCREENSHOTS("Screenshots", ImageSource.SCREENSHOT),
+    DOWNLOADS("Downloads", ImageSource.DOWNLOAD),
+    SOCIAL("Social & Chats", ImageSource.SOCIAL_MESSAGING),
+    NOTES("Notes & Docs", ImageSource.DOCUMENTS_NOTES),
+    IMPORTED("Imported", ImageSource.IMPORTED)
 }
 
 @Composable
@@ -71,6 +77,8 @@ fun LibraryScreen(
     onRescanMediaStore: () -> Unit,
     onSeedSamples: () -> Unit,
     onImportImages: () -> Unit = {},
+    mediaPermissionState: MediaPermissionState = MediaPermissionState.FULL_ACCESS,
+    onRequestPermissions: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedSource by remember { mutableStateOf(ImageSourceFilter.ALL) }
@@ -80,12 +88,9 @@ fun LibraryScreen(
 
     val filteredList = remember(screenshots, selectedSource, selectedCategory, selectedStatus) {
         screenshots.filter { item ->
-            val matchSource = when (selectedSource) {
-                ImageSourceFilter.ALL -> true
-                ImageSourceFilter.SCREENSHOTS -> ScreenshotDiscovery.isScreenshot(item.displayName, item.relativePath)
-                ImageSourceFilter.PHOTOS -> ScreenshotDiscovery.isCameraPhoto(item.displayName, item.relativePath)
-                ImageSourceFilter.IMPORTED -> !ScreenshotDiscovery.isScreenshot(item.displayName, item.relativePath) &&
-                        !ScreenshotDiscovery.isCameraPhoto(item.displayName, item.relativePath)
+            val matchSource = when (selectedSource.source) {
+                null -> true
+                else -> item.getImageSourceEnum() == selectedSource.source
             }
             val matchCat = selectedCategory == null || item.categoryLabels.contains(selectedCategory)
             val matchStatus = selectedStatus == null || item.indexingStatus == selectedStatus
@@ -108,7 +113,7 @@ fun LibraryScreen(
         ) {
             Column {
                 Text(
-                    text = "Image Library",
+                    text = "Universal Library",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -158,6 +163,107 @@ fun LibraryScreen(
                         contentDescription = "Rescan MediaStore",
                         tint = MaterialTheme.colorScheme.primary
                     )
+                }
+            }
+        }
+
+        // Permission Notice Banners
+        if (mediaPermissionState == MediaPermissionState.DENIED) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .testTag("permission_denied_card"),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Media Access Denied",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                    Text(
+                        text = "Recall requires permission to discover and index photos, screenshots, and downloads locally. You can also import specific photos without permissions.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(
+                            onClick = onRequestPermissions,
+                            modifier = Modifier.testTag("grant_permission_button")
+                        ) {
+                            Text("Grant Access")
+                        }
+                        OutlinedButton(
+                            onClick = onImportImages,
+                            modifier = Modifier.testTag("import_picker_button")
+                        ) {
+                            Text("Select Photos")
+                        }
+                    }
+                }
+            }
+        } else if (mediaPermissionState == MediaPermissionState.PARTIAL_ACCESS) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .testTag("partial_access_card"),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Partial Photo Access Active",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                text = "Only selected photos are accessible to Recall.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = onRequestPermissions,
+                        modifier = Modifier.testTag("manage_selection_button")
+                    ) {
+                        Text("Select More")
+                    }
                 }
             }
         }
@@ -224,7 +330,7 @@ fun LibraryScreen(
                 }
             }
         } else {
-            // Source Filter Bar (All Images, Screenshots, Camera & Photos, Imported)
+            // Source Filter Bar (All Images, Camera Photos, Screenshots, Downloads, Social & Chats, Notes & Docs, Imported)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -233,22 +339,19 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 for (source in ImageSourceFilter.entries) {
-                    val count = when (source) {
-                        ImageSourceFilter.ALL -> screenshots.size
-                        ImageSourceFilter.SCREENSHOTS -> screenshots.count { ScreenshotDiscovery.isScreenshot(it.displayName, it.relativePath) }
-                        ImageSourceFilter.PHOTOS -> screenshots.count { ScreenshotDiscovery.isCameraPhoto(it.displayName, it.relativePath) }
-                        ImageSourceFilter.IMPORTED -> screenshots.count {
-                            !ScreenshotDiscovery.isScreenshot(it.displayName, it.relativePath) &&
-                            !ScreenshotDiscovery.isCameraPhoto(it.displayName, it.relativePath)
-                        }
+                    val count = when (source.source) {
+                        null -> screenshots.size
+                        else -> screenshots.count { it.getImageSourceEnum() == source.source }
                     }
-                    FilterChip(
-                        selected = selectedSource == source,
-                        onClick = { selectedSource = source },
-                        label = { Text("${source.displayName} ($count)") },
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.testTag("filter_chip_source_${source.name.lowercase()}")
-                    )
+                    if (count > 0 || source == ImageSourceFilter.ALL || source == ImageSourceFilter.PHOTOS || source == ImageSourceFilter.SCREENSHOTS) {
+                        FilterChip(
+                            selected = selectedSource == source,
+                            onClick = { selectedSource = source },
+                            label = { Text("${source.displayName} ($count)") },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.testTag("filter_chip_source_${source.name.lowercase()}")
+                        )
+                    }
                 }
             }
 
@@ -290,11 +393,26 @@ fun LibraryScreen(
                         .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "No images match the selected filter.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = if (screenshots.isEmpty()) "No images in library yet" else "No images match the selected filter.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        if (screenshots.isEmpty()) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(onClick = onImportImages) {
+                                    Text("Select Photos")
+                                }
+                                OutlinedButton(onClick = onSeedSamples) {
+                                    Text("Seed Sample Images")
+                                }
+                            }
+                        }
+                    }
                 }
             } else {
                 LazyVerticalGrid(

@@ -4,8 +4,10 @@ import com.example.core.database.ScreenshotEntity
 import com.example.core.model.SearchResult
 import com.example.core.search.lexical.LexicalCandidate
 import com.example.core.search.query.ParsedQuery
+import com.example.core.search.query.QueryIntent
 import com.example.core.search.query.SearchMode
 import com.example.core.search.semantic.SemanticCandidate
+import com.example.core.search.visual.VisualCandidate
 import com.example.core.visual.PerceptualHasher
 import kotlin.math.max
 import kotlin.math.min
@@ -16,14 +18,17 @@ class CandidateFusion {
         query: ParsedQuery,
         semanticCandidates: List<SemanticCandidate>,
         lexicalCandidates: List<LexicalCandidate>,
+        visualCandidates: List<VisualCandidate> = emptyList(),
         allIndexedCorpus: List<ScreenshotEntity>,
         limit: Int = 50
     ): List<SearchResult> {
         val candidateMap = HashMap<Long, ScreenshotEntity>()
         val semanticRankMap = HashMap<Long, Int>()
         val lexicalRankMap = HashMap<Long, Int>()
+        val visualRankMap = HashMap<Long, Int>()
         val semanticScoreMap = HashMap<Long, Float>()
         val lexicalScoreMap = HashMap<Long, Float>()
+        val visualScoreMap = HashMap<Long, Float>()
         val lexicalMatchesMap = HashMap<Long, List<String>>()
         val hasExactIdentifierMap = HashMap<Long, Boolean>()
 
@@ -43,20 +48,43 @@ class CandidateFusion {
             }
         }
 
+        for ((idx, vc) in visualCandidates.withIndex()) {
+            candidateMap[vc.entity.id] = vc.entity
+            visualRankMap[vc.entity.id] = idx + 1
+            visualScoreMap[vc.entity.id] = vc.cosineSimilarity
+        }
+
         if (candidateMap.isEmpty()) return emptyList()
 
         val k = 60.0 // Standard RRF smoothing constant
-        val semanticWeight = if (query.searchMode == SearchMode.EXACT_ONLY) 0.1 else 0.65
-        val lexicalWeight = if (query.searchMode == SearchMode.SEMANTIC_ONLY) 0.1 else 0.35
+
+        // Adaptive Query-Intent Weights
+        val (visualWeight, semanticWeight, lexicalWeight) = when {
+            query.searchMode == SearchMode.EXACT_ONLY -> Triple(0.05, 0.15, 0.80)
+            query.searchMode == SearchMode.SEMANTIC_ONLY -> Triple(0.45, 0.50, 0.05)
+            query.searchMode == SearchMode.VISUAL_SIMILAR -> Triple(0.80, 0.15, 0.05)
+            query.queryIntent == QueryIntent.VISUAL_DOMINANT -> Triple(0.70, 0.15, 0.15)
+            query.queryIntent == QueryIntent.TEXTUAL_DOMINANT -> Triple(0.10, 0.25, 0.65)
+            else -> Triple(0.40, 0.35, 0.25) // BALANCED_HYBRID
+        }
 
         val rawResults = mutableListOf<SearchResult>()
 
         for ((id, entity) in candidateMap) {
             val sRank = semanticRankMap[id]
             val lRank = lexicalRankMap[id]
+            val vRank = visualRankMap[id]
+
+            val semanticScore = semanticScoreMap[id] ?: 0f
+            val lexicalScore = lexicalScoreMap[id] ?: 0f
+            val visualScore = visualScoreMap[id] ?: 0f
+            val matchedTerms = lexicalMatchesMap[id] ?: emptyList()
 
             // Reciprocal Rank Fusion
             var rrf = 0.0
+            if (vRank != null) {
+                rrf += visualWeight / (k + vRank)
+            }
             if (sRank != null) {
                 rrf += semanticWeight / (k + sRank)
             }
@@ -64,8 +92,13 @@ class CandidateFusion {
                 rrf += lexicalWeight / (k + lRank)
             }
 
-            // Scale RRF to un-clamped score
+            // Scale RRF to un-clamped base score
             var combinedScore = (rrf * (k + 1.0) * 1.5).toFloat()
+
+            // Add direct visual score boost for high visual matches
+            if (visualScore > 0.4f) {
+                combinedScore += (visualScore * visualWeight * 1.2).toFloat()
+            }
 
             // Exact identifier boost (e.g. 192.168.1.1, NullPointerException, $599, #4829)
             val hasExactIdentifier = hasExactIdentifierMap[id] == true
@@ -87,25 +120,22 @@ class CandidateFusion {
             } else true
 
             if (!matchesDate) {
-                // If query specified an explicit date constraint, demote non-matching
                 combinedScore *= 0.3f
             }
 
             // Negative term penalty
             for (neg in query.negativeTerms) {
                 if (entity.ocrText.contains(neg, ignoreCase = true) || entity.displayName.contains(neg, ignoreCase = true)) {
-                    combinedScore *= 0.25f // Strong penalty for negative term
+                    combinedScore *= 0.25f
                 }
             }
 
-            val semanticScore = semanticScoreMap[id] ?: 0f
-            val lexicalScore = lexicalScoreMap[id] ?: 0f
-            val matchedTerms = lexicalMatchesMap[id] ?: emptyList()
-
-            // Build explanation
+            // Build explanation & retrieval signals
             val signals = mutableListOf<String>()
             if (hasExactIdentifier) signals.add("Exact identifier match")
-            if (sRank != null && sRank <= 3) signals.add("High semantic relevance")
+            if (vRank != null && vRank <= 3) signals.add("High visual match (${(visualScore * 100).toInt()}%)")
+            else if (visualScore > 0.6f) signals.add("Visual match (${(visualScore * 100).toInt()}%)")
+            if (sRank != null && sRank <= 3) signals.add("High text semantics")
             if (lRank != null && lRank <= 3) signals.add("Direct keyword match")
             if (dateConstraint != null && matchesDate) signals.add("Matches date (${dateConstraint.label})")
             if (query.topicConstraint != null && entity.categoryLabels.contains(query.topicConstraint.name)) {
@@ -113,21 +143,23 @@ class CandidateFusion {
             }
 
             val explanation = buildExplanation(
+                queryIntent = query.queryIntent,
                 hasExactIdentifier = hasExactIdentifier,
+                visualScore = visualScore,
                 semanticScore = semanticScore,
                 lexicalScore = lexicalScore,
                 matchedTerms = matchedTerms,
                 signals = signals
             )
 
-            val snippet = extractSnippet(entity.ocrText, matchedTerms)
+            val snippet = extractSnippet(entity.ocrText, matchedTerms, visualScore, query.cleanSearchText)
 
             rawResults.add(
                 SearchResult(
                     screenshot = entity.toDomain(),
                     semanticScore = semanticScore,
                     lexicalScore = lexicalScore,
-                    visualScore = 0f,
+                    visualScore = visualScore,
                     combinedScore = combinedScore,
                     snippet = snippet,
                     matchedTerms = matchedTerms,
@@ -172,15 +204,13 @@ class CandidateFusion {
                 }
 
                 if (nearDupIdx >= 0) {
-                    // Update previous item's nearDuplicateCount
                     val prev = finalResults[nearDupIdx]
                     finalResults[nearDupIdx] = prev.copy(
                         hasNearDuplicates = true,
                         nearDuplicateCount = prev.nearDuplicateCount + 1
                     )
-                    // If near-duplicate is substantially lower or equal, diversify
                     if (finalResults.size >= limit / 2) {
-                        continue // Skip crowding the top list
+                        continue
                     }
                 } else {
                     seenHashes.add(pHash)
@@ -195,7 +225,9 @@ class CandidateFusion {
     }
 
     private fun buildExplanation(
+        queryIntent: QueryIntent,
         hasExactIdentifier: Boolean,
+        visualScore: Float,
         semanticScore: Float,
         lexicalScore: Float,
         matchedTerms: List<String>,
@@ -203,16 +235,35 @@ class CandidateFusion {
     ): String {
         return when {
             hasExactIdentifier -> "Exact technical identifier match"
-            semanticScore > 0.7f && lexicalScore > 0.4f -> "Matched both meaning & exact keywords (${matchedTerms.take(2).joinToString()})"
-            semanticScore > 0.6f -> "Semantically related concept (${(semanticScore * 100).toInt()}% meaning similarity)"
-            lexicalScore > 0.5f -> "Direct phrase match on '${matchedTerms.take(2).joinToString()}'"
-            signals.isNotEmpty() -> signals.joinToString(" • ")
+            queryIntent == QueryIntent.VISUAL_DOMINANT && visualScore > 0.5f ->
+                "Visual match: ${(visualScore * 100).toInt()}% visual similarity to description"
+            visualScore > 0.75f && visualScore > semanticScore ->
+                "Visual content match (${(visualScore * 100).toInt()}% similarity)"
+            semanticScore > 0.7f && lexicalScore > 0.4f ->
+                "Matched both meaning & exact keywords (${matchedTerms.take(2).joinToString()})"
+            semanticScore > 0.6f ->
+                "Semantically related concept (${(semanticScore * 100).toInt()}% meaning similarity)"
+            lexicalScore > 0.5f ->
+                "Direct phrase match on '${matchedTerms.take(2).joinToString()}'"
+            signals.isNotEmpty() ->
+                signals.joinToString(" • ")
             else -> "Matched query relevance"
         }
     }
 
-    private fun extractSnippet(ocrText: String, terms: List<String>): String {
-        if (ocrText.isBlank()) return "No text extracted from screenshot"
+    private fun extractSnippet(
+        ocrText: String,
+        terms: List<String>,
+        visualScore: Float,
+        queryText: String
+    ): String {
+        if (ocrText.isBlank()) {
+            return if (visualScore > 0.5f) {
+                "Visual match for \"$queryText\" (no embedded text)"
+            } else {
+                "No text extracted from image"
+            }
+        }
         val lines = ocrText.lines().map { it.trim() }.filter { it.isNotBlank() }
         if (lines.isEmpty()) return ocrText.take(150)
 

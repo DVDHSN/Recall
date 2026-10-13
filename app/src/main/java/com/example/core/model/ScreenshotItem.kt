@@ -22,12 +22,20 @@ data class ScreenshotItem(
     val embeddingVector: FloatArray? = null,
     val contentHash: String = "",
     val perceptualHash: Long = 0L,
-    val visualVector: FloatArray? = null,
+    val visualBlob: FloatArray? = null,
     val categoryLabels: List<ScreenshotCategory> = emptyList(),
     val classificationConfidence: Float = 0f,
     val ocrError: String? = null,
-    val embeddingError: String? = null
+    val embeddingError: String? = null,
+    val bucketName: String = "",
+    val imageSource: String = "OTHER",
+    val visualModelVersion: String = "",
+    val visualDimension: Int = 0,
+    val visualEmbeddingStatus: String = "PENDING"
 ) {
+    val visualVector: FloatArray? get() = visualBlob
+    fun getImageSourceEnum(): ImageSource = ImageSource.fromString(imageSource)
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -40,10 +48,19 @@ data class ScreenshotItem(
         if (indexingStatus != other.indexingStatus) return false
         if (contentHash != other.contentHash) return false
         if (perceptualHash != other.perceptualHash) return false
+        if (bucketName != other.bucketName) return false
+        if (imageSource != other.imageSource) return false
+        if (visualModelVersion != other.visualModelVersion) return false
+        if (visualDimension != other.visualDimension) return false
+        if (visualEmbeddingStatus != other.visualEmbeddingStatus) return false
         if (embeddingVector != null) {
             if (other.embeddingVector == null) return false
             if (!embeddingVector.contentEquals(other.embeddingVector)) return false
         } else if (other.embeddingVector != null) return false
+        if (visualBlob != null) {
+            if (other.visualBlob == null) return false
+            if (!visualBlob.contentEquals(other.visualBlob)) return false
+        } else if (other.visualBlob != null) return false
         return true
     }
 
@@ -56,7 +73,13 @@ data class ScreenshotItem(
         result = 31 * result + indexingStatus.hashCode()
         result = 31 * result + contentHash.hashCode()
         result = 31 * result + perceptualHash.hashCode()
+        result = 31 * result + bucketName.hashCode()
+        result = 31 * result + imageSource.hashCode()
+        result = 31 * result + visualModelVersion.hashCode()
+        result = 31 * result + visualDimension.hashCode()
+        result = 31 * result + visualEmbeddingStatus.hashCode()
         result = 31 * result + (embeddingVector?.contentHashCode() ?: 0)
+        result = 31 * result + (visualBlob?.contentHashCode() ?: 0)
         return result
     }
 }
