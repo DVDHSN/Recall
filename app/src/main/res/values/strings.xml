@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Recall</string>
+    <string name="tagline">On-Device Semantic Screenshot Search</string>
+    <string name="search_hint">Search screenshots by concept, text, code, recipe…</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_diagnostics">Diagnostics</string>
+    <string name="nav_settings">Settings</string>
+</resources>
