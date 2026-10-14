@@ -8,42 +8,67 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = RecallPrimaryDark,
-    onPrimary = RecallOnPrimaryDark,
-    primaryContainer = RecallPrimaryContainerDark,
-    onPrimaryContainer = RecallOnPrimaryContainerDark,
-    secondary = RecallSecondaryDark,
-    background = RecallBackgroundDark,
-    surface = RecallSurfaceDark,
-    surfaceVariant = RecallSurfaceVariantDark,
-    onBackground = RecallOnSurfaceDark,
-    onSurface = RecallOnSurfaceDark,
-    onSurfaceVariant = RecallOnSurfaceVariantDark,
-    outline = RecallOutlineDark
+    primary = AppleOrangeDark,
+    onPrimary = Color.Black,
+    primaryContainer = AppleOrangeMuted,
+    onPrimaryContainer = AppleOrangeDark,
+    secondary = DarkTextSecondary,
+    onSecondary = DarkTextPrimary,
+    secondaryContainer = DarkSurfaceVariant,
+    onSecondaryContainer = DarkTextPrimary,
+    tertiary = AppleOrangeLight,
+    onTertiary = Color.Black,
+    tertiaryContainer = AppleOrangeMuted,
+    onTertiaryContainer = AppleOrangeDark,
+    background = DarkBackground,
+    onBackground = DarkTextPrimary,
+    surface = DarkSurface,
+    onSurface = DarkTextPrimary,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,
+    outline = DarkOutline,
+    outlineVariant = DarkCardBorder,
+    error = StatusFailedColor,
+    onError = Color.White,
+    errorContainer = Color(0x33FF453A),
+    onErrorContainer = StatusFailedColor
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = RecallPrimaryLight,
-    onPrimary = RecallOnPrimaryLight,
-    primaryContainer = RecallPrimaryContainerLight,
-    onPrimaryContainer = RecallOnPrimaryContainerLight,
-    secondary = RecallSecondaryLight,
-    background = RecallBackgroundLight,
-    surface = RecallSurfaceLight,
-    surfaceVariant = RecallSurfaceVariantLight,
-    onBackground = RecallOnSurfaceLight,
-    onSurface = RecallOnSurfaceLight,
-    onSurfaceVariant = RecallOnSurfaceVariantLight,
-    outline = RecallOutlineLight
+    primary = AppleOrange,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFFECCC),
+    onPrimaryContainer = AppleOrange,
+    secondary = LightTextSecondary,
+    onSecondary = LightTextPrimary,
+    secondaryContainer = LightSurfaceVariant,
+    onSecondaryContainer = LightTextPrimary,
+    tertiary = AppleOrangeDark,
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFF0DB),
+    onTertiaryContainer = AppleOrange,
+    background = LightBackground,
+    onBackground = LightTextPrimary,
+    surface = LightSurface,
+    onSurface = LightTextPrimary,
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightTextSecondary,
+    outline = LightOutline,
+    outlineVariant = LightCardBorder,
+    error = StatusFailedColor,
+    onError = Color.White,
+    errorContainer = Color(0x22FF453A),
+    onErrorContainer = StatusFailedColor
 )
 
 @Composable
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Use our tuned Recall theme colors for brand consistency
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

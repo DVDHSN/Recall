@@ -2,34 +2,38 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Light Theme Colors
-val RecallPrimaryLight = Color(0xFF0284C7)
-val RecallOnPrimaryLight = Color(0xFFFFFFFF)
-val RecallPrimaryContainerLight = Color(0xFFE0F2FE)
-val RecallOnPrimaryContainerLight = Color(0xFF0369A1)
-val RecallSecondaryLight = Color(0xFF475569)
-val RecallBackgroundLight = Color(0xFFF8FAFC)
-val RecallSurfaceLight = Color(0xFFFFFFFF)
-val RecallSurfaceVariantLight = Color(0xFFF1F5F9)
-val RecallOnSurfaceLight = Color(0xFF0F172A)
-val RecallOnSurfaceVariantLight = Color(0xFF64748B)
-val RecallOutlineLight = Color(0xFFCBD5E1)
+// =========================================================================
+// Apple Minimalist Monochrome & Vibrant Orange Palette
+// =========================================================================
 
-// Dark Theme Colors (Refined Obsidian / Deep Navy)
-val RecallPrimaryDark = Color(0xFF38BDF8)
-val RecallOnPrimaryDark = Color(0xFF082F49)
-val RecallPrimaryContainerDark = Color(0xFF075985)
-val RecallOnPrimaryContainerDark = Color(0xFFBAE6FD)
-val RecallSecondaryDark = Color(0xFF94A3B8)
-val RecallBackgroundDark = Color(0xFF0B132B)
-val RecallSurfaceDark = Color(0xFF111D38)
-val RecallSurfaceVariantDark = Color(0xFF1C2A4A)
-val RecallOnSurfaceDark = Color(0xFFF1F5F9)
-val RecallOnSurfaceVariantDark = Color(0xFF94A3B8)
-val RecallOutlineDark = Color(0xFF334155)
+// Apple Signature Orange Accent
+val AppleOrange = Color(0xFFFF9500)       // iOS Light Vibrant Orange
+val AppleOrangeDark = Color(0xFFFF9F0A)   // iOS Dark High-Contrast Orange
+val AppleOrangeLight = Color(0xFFFFB340)  // Subtle orange highlight
+val AppleOrangeMuted = Color(0x26FF9F0A)  // Translucent orange background (15% opacity)
 
-// Accent and status tags
-val StatusIndexedColor = Color(0xFF10B981)
-val StatusProcessingColor = Color(0xFFF59E0B)
-val StatusEmptyColor = Color(0xFF64748B)
-val StatusFailedColor = Color(0xFFEF4444)
+// Dark Theme (Pure OLED Monochrome with System Grays)
+val DarkBackground = Color(0xFF000000)      // Pure OLED True Black
+val DarkSurface = Color(0xFF141416)         // Apple System Gray 6 (Elevated)
+val DarkSurfaceVariant = Color(0xFF1F1F24)  // Apple System Gray 5 (Cards & Grouped)
+val DarkCardBorder = Color(0xFF2C2C30)      // Subtle hairline border
+val DarkTextPrimary = Color(0xFFFFFFFF)     // High-contrast primary text
+val DarkTextSecondary = Color(0xFF8E8E93)   // Apple System Gray (Subtitles/Labels)
+val DarkTextTertiary = Color(0xFF636366)    // Apple System Gray 3
+val DarkOutline = Color(0xFF38383A)         // Subtle divider line
+
+// Light Theme (Apple Clean Paper Monochrome with System Grays)
+val LightBackground = Color(0xFFF2F2F7)     // iOS Grouped Table Background
+val LightSurface = Color(0xFFFFFFFF)        // Pure White Card Surface
+val LightSurfaceVariant = Color(0xFFE5E5EA) // Apple System Gray 4
+val LightCardBorder = Color(0xFFE5E5EA)     // Subtle light border
+val LightTextPrimary = Color(0xFF000000)    // Pure Black primary text
+val LightTextSecondary = Color(0xFF8E8E93)  // Apple System Gray (Labels)
+val LightTextTertiary = Color(0xFFAEAEC2)   // Apple Light Tertiary
+val LightOutline = Color(0xFFD1D1D6)        // Subtle hairline divider
+
+// Status & Semantic Colors (Apple System Colors)
+val StatusIndexedColor = Color(0xFF34C759)    // Apple System Green
+val StatusProcessingColor = Color(0xFFFF9F0A) // Apple System Orange
+val StatusEmptyColor = Color(0xFF8E8E93)      // Apple System Gray
+val StatusFailedColor = Color(0xFFFF453A)     // Apple System Red

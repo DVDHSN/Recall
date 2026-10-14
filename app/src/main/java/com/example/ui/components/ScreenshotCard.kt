@@ -1,7 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,31 +13,33 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.request.ImageRequest
 import com.example.core.model.IndexingStatus
-import com.example.core.model.ScreenshotCategory
 import com.example.core.model.ScreenshotItem
 import com.example.core.model.SearchResult
+import com.example.ui.theme.AppleOrange
 import com.example.ui.theme.StatusEmptyColor
 import com.example.ui.theme.StatusFailedColor
 import com.example.ui.theme.StatusIndexedColor
@@ -52,16 +54,19 @@ fun SearchResultCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                width = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(16.dp)
+            )
+            .applePressBounce(targetScale = 0.97f, onClick = onClick)
             .testTag("search_result_card_${result.screenshot.id}"),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier
@@ -69,12 +74,17 @@ fun SearchResultCard(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Thumbnail
+            // Thumbnail with Apple rounded squircle corner
             ScreenshotThumbnail(
                 uriString = result.screenshot.contentUri,
                 modifier = Modifier
-                    .size(width = 84.dp, height = 114.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(width = 80.dp, height = 110.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(
+                        width = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        shape = RoundedCornerShape(12.dp)
+                    )
             )
 
             Spacer(modifier = Modifier.width(14.dp))
@@ -98,40 +108,45 @@ fun SearchResultCard(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Match confidence badge
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // Apple Orange Match confidence badge
                     val matchPercent = (result.combinedScore * 100).toInt().coerceIn(15, 99)
                     val isVisualDominant = result.visualScore > 0.45f && (result.visualScore > result.semanticScore || result.screenshot.ocrText.isBlank())
                     Box(
                         modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
                             .background(
-                                color = if (isVisualDominant) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
-                                shape = RoundedCornerShape(6.dp)
+                                color = if (isVisualDominant) AppleOrange.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant
                             )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
                         Text(
                             text = if (isVisualDominant) "${(result.visualScore * 100).toInt()}% visual" else "$matchPercent% match",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                             fontWeight = FontWeight.Bold,
-                            color = if (isVisualDominant) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                            color = if (isVisualDominant) AppleOrange else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
 
                 // Transparent Match Explanation
                 if (result.explanation.isNotBlank()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(12.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 1.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(AppleOrange)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = result.explanation,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = AppleOrange,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -147,6 +162,8 @@ fun SearchResultCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
+                Spacer(modifier = Modifier.height(2.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -155,8 +172,8 @@ fun SearchResultCard(
                     val dateStr = formatTimestamp(result.screenshot.dateModified)
                     Text(
                         text = dateStr,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.secondary
                     )
 
                     Row(
@@ -167,24 +184,22 @@ fun SearchResultCard(
                         if (result.hasNearDuplicates) {
                             Box(
                                 modifier = Modifier
-                                    .background(
-                                        color = MaterialTheme.colorScheme.surfaceVariant,
-                                        shape = RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = Icons.Default.ContentCopy,
+                                        imageVector = Icons.Rounded.ContentCopy,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(10.dp)
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(11.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "+${result.nearDuplicateCount} copy",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.outline
+                                        text = "+${result.nearDuplicateCount}",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        color = MaterialTheme.colorScheme.secondary
                                     )
                                 }
                             }
@@ -195,15 +210,14 @@ fun SearchResultCard(
                         if (primaryCat != null) {
                             Box(
                                 modifier = Modifier
-                                    .background(
-                                        color = MaterialTheme.colorScheme.surfaceVariant,
-                                        shape = RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = primaryCat.displayName,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -221,20 +235,25 @@ fun ScreenshotGridItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clip(RoundedCornerShape(14.dp))
+            .border(
+                width = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .applePressBounce(targetScale = 0.96f, onClick = onClick)
             .testTag("screenshot_grid_item_${item.id}"),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(130.dp)
+                    .height(140.dp)
             ) {
                 ScreenshotThumbnail(
                     uriString = item.contentUri,
@@ -256,34 +275,33 @@ fun ScreenshotGridItem(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .padding(6.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                shape = RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.Black.copy(alpha = 0.72f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = primaryCat.displayName,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
                         )
                     }
                 }
             }
 
-            Column(modifier = Modifier.padding(8.dp)) {
+            Column(modifier = Modifier.padding(10.dp)) {
                 Text(
                     text = item.displayName,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = formatTimestamp(item.dateModified),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
         }
@@ -296,21 +314,22 @@ fun StatusBadge(
     modifier: Modifier = Modifier
 ) {
     val (bgColor, textColor, text) = when (status) {
-        IndexingStatus.INDEXED -> Triple(StatusIndexedColor.copy(alpha = 0.9f), MaterialTheme.colorScheme.surface, "Indexed")
-        IndexingStatus.PROCESSING -> Triple(StatusProcessingColor.copy(alpha = 0.9f), MaterialTheme.colorScheme.surface, "Scanning")
-        IndexingStatus.EMPTY_TEXT -> Triple(StatusEmptyColor.copy(alpha = 0.9f), MaterialTheme.colorScheme.surface, "Visual")
-        IndexingStatus.FAILED -> Triple(StatusFailedColor.copy(alpha = 0.9f), MaterialTheme.colorScheme.surface, "Failed")
-        IndexingStatus.PENDING, IndexingStatus.NEEDS_REINDEX -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "Pending")
+        IndexingStatus.INDEXED -> Triple(StatusIndexedColor.copy(alpha = 0.9f), Color.White, "Indexed")
+        IndexingStatus.PROCESSING -> Triple(StatusProcessingColor.copy(alpha = 0.9f), Color.Black, "Scanning")
+        IndexingStatus.EMPTY_TEXT -> Triple(StatusEmptyColor.copy(alpha = 0.85f), Color.White, "Visual")
+        IndexingStatus.FAILED -> Triple(StatusFailedColor.copy(alpha = 0.9f), Color.White, "Failed")
+        IndexingStatus.PENDING, IndexingStatus.NEEDS_REINDEX -> Triple(Color(0xFF2C2C2E).copy(alpha = 0.85f), Color.White, "Pending")
     }
 
     Box(
         modifier = modifier
-            .background(color = bgColor, shape = RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(6.dp))
+            .background(color = bgColor)
             .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
             fontWeight = FontWeight.Bold,
             color = textColor
         )
@@ -337,9 +356,10 @@ fun ScreenshotThumbnail(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Image,
+                    imageVector = Icons.Rounded.Image,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.outline
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
@@ -349,6 +369,6 @@ fun ScreenshotThumbnail(
 private fun formatTimestamp(timestampSec: Long): String {
     if (timestampSec <= 0) return "Recent"
     val millis = if (timestampSec < 10000000000L) timestampSec * 1000 else timestampSec
-    val sdf = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+    val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
     return sdf.format(Date(millis))
 }

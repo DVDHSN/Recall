@@ -1,7 +1,9 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,22 +14,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,12 +44,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.unit.sp
+import com.example.ui.components.AppleGroupedCard
+import com.example.ui.components.AppleGroupedRow
+import com.example.ui.components.AppleSectionHeader
+import com.example.ui.components.applePressBounce
+import com.example.ui.theme.AppleOrange
+import com.example.ui.theme.StatusFailedColor
 
 @Composable
 fun SettingsScreen(
@@ -64,223 +77,174 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column {
+        // Apple Large Title
+        Column(modifier = Modifier.padding(horizontal = 4.dp)) {
             Text(
-                text = "Settings & Privacy",
-                style = MaterialTheme.typography.headlineMedium,
+                text = "Settings",
+                style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = "Manage local index, synthetic testing data, and privacy controls",
+                text = "Privacy, Image Sources, and Local Index Controls",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.secondary
             )
         }
 
-        // Privacy card
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        // Privacy Section
+        AppleSectionHeader(title = "Privacy & Security")
+        AppleGroupedCard {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Security,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(AppleOrange.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Security,
+                            contentDescription = null,
+                            tint = AppleOrange,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "100% On-Device Privacy Guarantee",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "100% On-Device Air-Gapped",
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Text(
-                    text = "• No INTERNET permission declared in AndroidManifest.\n" +
-                            "• Zero network calls, telemetry, or server uploads.\n" +
-                            "• All OCR text and 384-dimensional vectors reside strictly in private app SQLite storage.\n" +
-                            "• Works fully in Airplane Mode without accounts or subscriptions.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    PrivacyBullet("Zero network calls or telemetry. No internet permission.")
+                    PrivacyBullet("All OCR and 384D vectors reside in encrypted local app storage.")
+                    PrivacyBullet("Works completely offline and in Airplane Mode.")
+                }
             }
         }
 
-        // Scan Scope & Sources Card
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Image Discovery Scope",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-
+        // Discovery Scope Section
+        AppleSectionHeader(title = "Discovery Scope")
+        AppleGroupedCard {
+            Column {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (scopeScreenshotsOnly) "Screenshots Only" else "All Device Images",
+                            text = if (scopeScreenshotsOnly) "Screenshots Only" else "All Device Photos",
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = if (scopeScreenshotsOnly)
-                                "Only scans dedicated screenshot folders"
+                                "Scans dedicated screenshot folders only"
                             else
-                                "Scans camera photos, pictures, downloads, and screenshots",
+                                "Scans camera photos, downloads, and screenshots",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
+                            color = MaterialTheme.colorScheme.secondary
                         )
                     }
 
                     Switch(
                         checked = !scopeScreenshotsOnly,
                         onCheckedChange = { onToggleScopeScreenshotsOnly(!it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = AppleOrange,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
                         modifier = Modifier.testTag("settings_all_images_switch")
                     )
                 }
 
-                OutlinedButton(
-                    onClick = onImportImages,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("settings_import_photos_button")
-                ) {
-                    Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Select & Import Photos from Gallery")
-                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 16.dp),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                AppleGroupedRow(
+                    title = "Select Photos from Gallery",
+                    leadingIcon = Icons.Rounded.AddPhotoAlternate,
+                    trailingIcon = Icons.Rounded.ChevronRight,
+                    showDivider = false,
+                    onClick = onImportImages
+                )
             }
         }
 
-        // Library Index Management Card
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Index Controls",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
+        // Index Management Section
+        AppleSectionHeader(title = "Index Controls")
+        AppleGroupedCard {
+            Column {
+                AppleGroupedRow(
+                    title = "Rescan Device Images",
+                    leadingIcon = Icons.Rounded.Sync,
+                    trailingIcon = Icons.Rounded.ChevronRight,
+                    showDivider = true,
+                    onClick = onRescanMediaStore
                 )
 
-                OutlinedButton(
-                    onClick = onRescanMediaStore,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("settings_rescan_button")
-                ) {
-                    Icon(imageVector = Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Reconcile & Rescan Device Images")
-                }
+                AppleGroupedRow(
+                    title = "Seed Sample Images (Recipes, Notes)",
+                    leadingIcon = Icons.Rounded.AddPhotoAlternate,
+                    trailingIcon = Icons.Rounded.ChevronRight,
+                    showDivider = true,
+                    onClick = onSeedSamples
+                )
 
-                OutlinedButton(
-                    onClick = onSeedSamples,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("settings_seed_samples_button")
-                ) {
-                    Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Seed Sample Images (Recipes, Notes, Wi-Fi)")
-                }
+                AppleGroupedRow(
+                    title = "Rebuild Vector Index",
+                    leadingIcon = Icons.Rounded.Refresh,
+                    trailingIcon = Icons.Rounded.ChevronRight,
+                    showDivider = true,
+                    onClick = { showRebuildDialog = true }
+                )
 
-                OutlinedButton(
-                    onClick = { showRebuildDialog = true },
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("settings_rebuild_index_button")
-                ) {
-                    Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Rebuild Vector Index")
-                }
+                AppleGroupedRow(
+                    title = "Retry Quarantined Images",
+                    leadingIcon = Icons.Rounded.Refresh,
+                    trailingIcon = Icons.Rounded.ChevronRight,
+                    showDivider = true,
+                    onClick = onRetryFailed
+                )
 
-                OutlinedButton(
-                    onClick = onRetryFailed,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("settings_retry_failed_button")
-                ) {
-                    Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Retry Failed / Quarantined Images")
-                }
-
-                Button(
-                    onClick = { showClearDialog = true },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("settings_clear_index_button")
-                ) {
-                    Icon(imageVector = Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Clear Local Index")
-                }
+                AppleGroupedRow(
+                    title = "Clear Local Index",
+                    leadingIcon = Icons.Rounded.DeleteSweep,
+                    accentColor = StatusFailedColor,
+                    trailingIcon = Icons.Rounded.ChevronRight,
+                    showDivider = false,
+                    onClick = { showClearDialog = true }
+                )
             }
         }
 
-        // About Card
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = "Recall v1.0 (Build 2026.10)",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Target Platform: Android 15 (minSdk 35) • Universal Image Search",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-                Text(
-                    text = "Open Source Model: all-MiniLM-L6-v2 (Apache 2.0 License)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
+        // About Section
+        AppleSectionHeader(title = "About Recall")
+        AppleGroupedCard {
+            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                SettingsAboutRow("Version", "1.0 (Build 2026.10)")
+                SettingsAboutRow("Target Platform", "Android 15 (minSdk 35)")
+                SettingsAboutRow("Model", "all-MiniLM-L6-v2 (Apache 2.0)")
+                SettingsAboutRow("Design", "Monochrome Minimalist + Orange", isLast = true)
             }
         }
     }
@@ -289,11 +253,18 @@ fun SettingsScreen(
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("Clear Local Search Index?") },
+            title = {
+                Text(
+                    text = "Clear Local Search Index?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 Text(
-                    "This clears the OCR text and vector database from Recall. " +
-                            "IMPORTANT: Your original photos and screenshots on your device will NOT be deleted."
+                    "This clears the OCR text and vector embeddings from Recall's database. Your original photos and screenshots on your device will NOT be deleted.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             confirmButton = {
@@ -302,16 +273,19 @@ fun SettingsScreen(
                         onClearIndex()
                         showClearDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusFailedColor)
                 ) {
-                    Text("Clear Index")
+                    Text("Clear Index", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
                 }
-            }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(18.dp)
         )
     }
 
@@ -319,10 +293,18 @@ fun SettingsScreen(
     if (showRebuildDialog) {
         AlertDialog(
             onDismissRequest = { showRebuildDialog = false },
-            title = { Text("Rebuild Vector Index?") },
+            title = {
+                Text(
+                    text = "Rebuild Vector Index?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 Text(
-                    "This resets all cached embeddings and re-runs on-device sentence transformer embeddings across all screenshots."
+                    "This resets all cached embeddings and re-runs on-device sentence transformer embeddings across all screenshots.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             confirmButton = {
@@ -330,16 +312,71 @@ fun SettingsScreen(
                     onClick = {
                         onRebuildIndex()
                         showRebuildDialog = false
-                    }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppleOrange)
                 ) {
-                    Text("Rebuild")
+                    Text("Rebuild", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showRebuildDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
                 }
-            }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(18.dp)
         )
+    }
+}
+
+@Composable
+private fun PrivacyBullet(text: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Icon(
+            imageVector = Icons.Rounded.Check,
+            contentDescription = null,
+            tint = AppleOrange,
+            modifier = Modifier
+                .size(16.dp)
+                .padding(top = 2.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun SettingsAboutRow(label: String, value: String, isLast: Boolean = false) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
+        if (!isLast) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 16.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+        }
     }
 }

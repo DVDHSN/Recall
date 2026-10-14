@@ -4,24 +4,52 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Assessment
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.Assessment
+import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,9 +57,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.core.model.MediaPermissionState
 import com.example.ui.screens.DiagnosticsScreen
@@ -39,14 +75,16 @@ import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.ScreenshotDetailScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.theme.AppleOrange
+import com.example.ui.theme.AppleOrangeDark
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.MainViewModel
 
-enum class NavigationTab(val label: String) {
-    SEARCH("Search"),
-    LIBRARY("Library"),
-    DIAGNOSTICS("Diagnostics"),
-    SETTINGS("Settings")
+enum class NavigationTab(val label: String, val activeIcon: ImageVector, val inactiveIcon: ImageVector) {
+    SEARCH("Search", Icons.Rounded.Search, Icons.Outlined.Search),
+    LIBRARY("Library", Icons.Rounded.PhotoLibrary, Icons.Outlined.PhotoLibrary),
+    DIAGNOSTICS("Diagnostics", Icons.Rounded.Assessment, Icons.Outlined.Assessment),
+    SETTINGS("Settings", Icons.Rounded.Settings, Icons.Outlined.Settings)
 }
 
 class MainActivity : ComponentActivity() {
@@ -87,6 +125,14 @@ fun MainAppContainer(viewModel: MainViewModel) {
     val isAskMode by viewModel.isAskMode.collectAsStateWithLifecycle()
     val askQuery by viewModel.askQuery.collectAsStateWithLifecycle()
     val askUiState by viewModel.askUiState.collectAsStateWithLifecycle()
+    val proactiveSuggestions by viewModel.proactiveSuggestions.collectAsStateWithLifecycle()
+
+    // Handle back button when inspecting a screenshot detail
+    if (selectedScreenshot != null) {
+        BackHandler {
+            viewModel.selectScreenshot(null)
+        }
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -129,41 +175,10 @@ fun MainAppContainer(viewModel: MainViewModel) {
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
             if (selectedScreenshot == null) {
-                NavigationBar(
-                    modifier = Modifier.testTag("bottom_navigation_bar")
-                ) {
-                    NavigationBarItem(
-                        selected = currentTab == NavigationTab.SEARCH,
-                        onClick = { currentTab = NavigationTab.SEARCH },
-                        icon = { Icon(Icons.Default.Search, contentDescription = "Search tab") },
-                        label = { Text(NavigationTab.SEARCH.label) },
-                        modifier = Modifier.testTag("nav_item_search")
-                    )
-
-                    NavigationBarItem(
-                        selected = currentTab == NavigationTab.LIBRARY,
-                        onClick = { currentTab = NavigationTab.LIBRARY },
-                        icon = { Icon(Icons.Default.PhotoLibrary, contentDescription = "Library tab") },
-                        label = { Text(NavigationTab.LIBRARY.label) },
-                        modifier = Modifier.testTag("nav_item_library")
-                    )
-
-                    NavigationBarItem(
-                        selected = currentTab == NavigationTab.DIAGNOSTICS,
-                        onClick = { currentTab = NavigationTab.DIAGNOSTICS },
-                        icon = { Icon(Icons.Default.Assessment, contentDescription = "Diagnostics tab") },
-                        label = { Text(NavigationTab.DIAGNOSTICS.label) },
-                        modifier = Modifier.testTag("nav_item_diagnostics")
-                    )
-
-                    NavigationBarItem(
-                        selected = currentTab == NavigationTab.SETTINGS,
-                        onClick = { currentTab = NavigationTab.SETTINGS },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings tab") },
-                        label = { Text(NavigationTab.SETTINGS.label) },
-                        modifier = Modifier.testTag("nav_item_settings")
-                    )
-                }
+                AppleMinimalistTabBar(
+                    currentTab = currentTab,
+                    onTabSelected = { currentTab = it }
+                )
             }
         }
     ) { innerPadding ->
@@ -181,66 +196,173 @@ fun MainAppContainer(viewModel: MainViewModel) {
                     onSelectScreenshot = { viewModel.selectScreenshot(it) }
                 )
             } else {
-                when (currentTab) {
-                    NavigationTab.SEARCH -> SearchScreen(
-                        query = searchQuery,
-                        isSearching = isSearching,
-                        results = searchResults,
-                        stats = indexStats,
-                        parsedQuery = parsedQuery,
-                        searchMode = searchMode,
-                        onQueryChange = { viewModel.onQueryChange(it) },
-                        onSearchModeChange = { viewModel.onSearchModeChange(it) },
-                        onRemoveInferredFilter = { viewModel.removeInferredFilter(it) },
-                        onToggleIndexing = { viewModel.toggleIndexing() },
-                        onSelectScreenshot = { viewModel.selectScreenshot(it) },
-                        isAskMode = isAskMode,
-                        askQuery = askQuery,
-                        askUiState = askUiState,
-                        allScreenshots = allScreenshots,
-                        onToggleAskMode = { viewModel.setAskMode(it) },
-                        onAskQueryChange = { viewModel.onAskQueryChange(it) },
-                        onSubmitAskQuestion = { viewModel.submitAskQuestion(it) },
-                        onClearAskState = { viewModel.clearAskState() }
+                AnimatedContent(
+                    targetState = currentTab,
+                    transitionSpec = {
+                        fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
+                                fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMedium))
+                    },
+                    label = "tabTransition"
+                ) { targetTab ->
+                    when (targetTab) {
+                        NavigationTab.SEARCH -> SearchScreen(
+                            query = searchQuery,
+                            isSearching = isSearching,
+                            results = searchResults,
+                            stats = indexStats,
+                            parsedQuery = parsedQuery,
+                            searchMode = searchMode,
+                            onQueryChange = { viewModel.onQueryChange(it) },
+                            onSearchModeChange = { viewModel.onSearchModeChange(it) },
+                            onRemoveInferredFilter = { viewModel.removeInferredFilter(it) },
+                            onToggleIndexing = { viewModel.toggleIndexing() },
+                            onSelectScreenshot = { viewModel.selectScreenshot(it) },
+                            isAskMode = isAskMode,
+                            askQuery = askQuery,
+                            askUiState = askUiState,
+                            proactiveSuggestions = proactiveSuggestions,
+                            onRemoveRecentQuery = { viewModel.removeRecentQuery(it) },
+                            onClearRecentQueries = { viewModel.clearRecentQueries() },
+                            allScreenshots = allScreenshots,
+                            onToggleAskMode = { viewModel.setAskMode(it) },
+                            onAskQueryChange = { viewModel.onAskQueryChange(it) },
+                            onSubmitAskQuestion = { viewModel.submitAskQuestion(it) },
+                            onClearAskState = { viewModel.clearAskState() }
+                        )
+
+                        NavigationTab.LIBRARY -> LibraryScreen(
+                            screenshots = allScreenshots,
+                            duplicateGroups = duplicateGroups,
+                            onSelectScreenshot = { viewModel.selectScreenshot(it) },
+                            onRescanMediaStore = { viewModel.discoverImages() },
+                            onSeedSamples = { viewModel.seedSampleScreenshots() },
+                            onImportImages = {
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            mediaPermissionState = mediaPermissionState,
+                            onRequestPermissions = { permissionLauncher.launch(permissionsToRequest) }
+                        )
+
+                        NavigationTab.DIAGNOSTICS -> DiagnosticsScreen(
+                            stats = indexStats,
+                            benchmarkReport = benchmarkReport,
+                            isBenchmarking = isBenchmarking,
+                            onRunBenchmark = { viewModel.runDiagnosticsBenchmark() },
+                            onRetryFailed = { viewModel.retryFailedImages() }
+                        )
+
+                        NavigationTab.SETTINGS -> SettingsScreen(
+                            onRescanMediaStore = { viewModel.discoverImages() },
+                            onSeedSamples = { viewModel.seedSampleScreenshots() },
+                            onRebuildIndex = { viewModel.resetAllForReindexing() },
+                            onClearIndex = { viewModel.clearIndex() },
+                            onRetryFailed = { viewModel.retryFailedImages() },
+                            onImportImages = {
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            scopeScreenshotsOnly = scopeScreenshotsOnly,
+                            onToggleScopeScreenshotsOnly = { viewModel.setScopeScreenshotsOnly(it) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Apple-style minimalist tab bar with translucent surface, hairline divider, and smooth icon spring microinteractions.
+ */
+@Composable
+private fun AppleMinimalistTabBar(
+    currentTab: NavigationTab,
+    onTabSelected: (NavigationTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("bottom_navigation_bar"),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        tonalElevation = 0.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.navigationBars)
+        ) {
+            // Apple hairline top border
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(0.5.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NavigationTab.entries.forEach { tab ->
+                    val isSelected = tab == currentTab
+                    val scale by animateFloatAsState(
+                        targetValue = if (isSelected) 1.05f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "tabIconScale"
                     )
 
-                    NavigationTab.LIBRARY -> LibraryScreen(
-                        screenshots = allScreenshots,
-                        duplicateGroups = duplicateGroups,
-                        onSelectScreenshot = { viewModel.selectScreenshot(it) },
-                        onRescanMediaStore = { viewModel.discoverImages() },
-                        onSeedSamples = { viewModel.seedSampleScreenshots() },
-                        onImportImages = {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    val testTagKey = when (tab) {
+                        NavigationTab.SEARCH -> "nav_item_search"
+                        NavigationTab.LIBRARY -> "nav_item_library"
+                        NavigationTab.DIAGNOSTICS -> "nav_item_diagnostics"
+                        NavigationTab.SETTINGS -> "nav_item_settings"
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onTabSelected(tab) }
                             )
-                        },
-                        mediaPermissionState = mediaPermissionState,
-                        onRequestPermissions = { permissionLauncher.launch(permissionsToRequest) }
-                    )
-
-                    NavigationTab.DIAGNOSTICS -> DiagnosticsScreen(
-                        stats = indexStats,
-                        benchmarkReport = benchmarkReport,
-                        isBenchmarking = isBenchmarking,
-                        onRunBenchmark = { viewModel.runDiagnosticsBenchmark() },
-                        onRetryFailed = { viewModel.retryFailedImages() }
-                    )
-
-                    NavigationTab.SETTINGS -> SettingsScreen(
-                        onRescanMediaStore = { viewModel.discoverImages() },
-                        onSeedSamples = { viewModel.seedSampleScreenshots() },
-                        onRebuildIndex = { viewModel.resetAllForReindexing() },
-                        onClearIndex = { viewModel.clearIndex() },
-                        onRetryFailed = { viewModel.retryFailedImages() },
-                        onImportImages = {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            .testTag(testTagKey)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.scale(scale)
+                        ) {
+                            Icon(
+                                imageVector = if (isSelected) tab.activeIcon else tab.inactiveIcon,
+                                contentDescription = "${tab.label} tab",
+                                tint = if (isSelected) AppleOrange else MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(23.dp)
                             )
-                        },
-                        scopeScreenshotsOnly = scopeScreenshotsOnly,
-                        onToggleScopeScreenshotsOnly = { viewModel.setScopeScreenshotsOnly(it) }
-                    )
+                        }
+
+                        Text(
+                            text = tab.label,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isSelected) AppleOrange else MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
                 }
             }
         }

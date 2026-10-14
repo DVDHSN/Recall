@@ -82,6 +82,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val indexStats: StateFlow<IndexStats> = repository.indexStatsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), IndexStats())
 
+    private val _recentQueries = MutableStateFlow<List<String>>(
+        listOf("WiFi password", "Chickpeas recipe", "Python error", "Receipt total")
+    )
+    val recentQueries: StateFlow<List<String>> = _recentQueries.asStateFlow()
+
+    val proactiveSuggestions: StateFlow<com.example.core.search.suggestion.ProactiveSearchSuggestions> =
+        kotlinx.coroutines.flow.combine(allScreenshots, _recentQueries) { screenshots, recents ->
+            com.example.core.search.suggestion.ProactiveSearchEngine.computeSuggestions(screenshots, recents)
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            com.example.core.search.suggestion.ProactiveSearchSuggestions()
+        )
+
     private var searchJob: Job? = null
 
     init {
@@ -119,6 +133,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addRecentQuery(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isNotBlank()) {
+            val updated = (listOf(trimmed) + _recentQueries.value.filter { it.lowercase() != trimmed.lowercase() }).take(8)
+            _recentQueries.value = updated
+        }
+    }
+
+    fun removeRecentQuery(query: String) {
+        _recentQueries.value = _recentQueries.value.filter { it != query }
+    }
+
+    fun clearRecentQueries() {
+        _recentQueries.value = emptyList()
+    }
+
     fun executeSearch(query: String) {
         searchJob?.cancel()
         val trimmed = query.trim()
@@ -128,6 +158,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isSearching.value = false
             return
         }
+
+        addRecentQuery(trimmed)
 
         searchJob = viewModelScope.launch {
             _isSearching.value = true
